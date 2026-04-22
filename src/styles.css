@@ -1,0 +1,40 @@
+:root {
+  font-family: Inter, system-ui, Arial, sans-serif;
+  color: #10141a;
+  background: #f3f6fb;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.2rem;
+}
+
+.selectors {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+  gap: 1rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+th,
+td {
+  border: 1px solid #cfd7e6;
+  padding: 0.35rem;
+  font-size: 0.83rem;
+}
