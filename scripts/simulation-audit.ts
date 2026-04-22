@@ -1,5 +1,6 @@
 import { initialPlayers } from '../src/data/players';
 import { initialTeams } from '../src/data/teams';
+import { leagueRules } from '../src/domain/rules';
 import { simulateGame } from '../src/simulation/engine';
 
 const GAMES = 528;
@@ -142,6 +143,16 @@ const runAudit = () => {
   const output = {
     gamesSimulated: GAMES,
     teamSamples: n,
+    activeSettings: {
+      game: leagueRules.game,
+      simulation: leagueRules.simulation,
+      paceInterpretation: leagueRules.simulation.paceIsPer48
+        ? `pace is per-48 and converted to per-${leagueRules.game.numPeriods * leagueRules.game.quarterLength} in engine`
+        : `pace is per-${leagueRules.game.numPeriods * leagueRules.game.quarterLength}`,
+      convertedPaceForGameLength: leagueRules.simulation.paceIsPer48
+        ? (leagueRules.simulation.pace * (leagueRules.game.numPeriods * leagueRules.game.quarterLength)) / 48
+        : leagueRules.simulation.pace
+    },
     averages: {
       teamPoints: sums.points / n,
       possessionsPerTeam: sums.possessions / n,
