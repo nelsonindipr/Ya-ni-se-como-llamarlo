@@ -156,6 +156,17 @@ export type GameResult = {
   winnerTeamId: string;
 };
 
+export type ScheduledGame = {
+  id: string;
+  gameNumber: number;
+  homeTeamId: string;
+  awayTeamId: string;
+  played: boolean;
+  resultId?: string;
+  homeScore?: number;
+  awayScore?: number;
+};
+
 export type StandingRow = Team & {
   gamesPlayed: number;
   winPct: number;
