@@ -88,9 +88,12 @@ export type PlayerBoxScore = {
   minutes: number;
   points: number;
   rebounds: number;
+  offensiveRebounds: number;
+  defensiveRebounds: number;
   assists: number;
   steals: number;
   blocks: number;
+  fouls: number;
   turnovers: number;
   fgm: number;
   fga: number;
