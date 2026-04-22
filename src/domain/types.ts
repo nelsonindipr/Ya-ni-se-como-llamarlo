@@ -70,16 +70,54 @@ export type Player = {
 };
 
 export type LeagueRules = {
-  seasonYear: 2026;
-  regularSeasonGames: 34;
-  gameLengthMinutes: 40;
-  quarters: 4;
-  quarterLengthMinutes: 10;
-  maxImportsPerTeam: 3;
-  playoffTeamsPerConference: 4;
-  hasPlayIn: false;
-  playoffFormat: 'conference_based';
-  finalsFormat: 'conference_champion_vs_conference_champion';
+  startingSeason: 2026;
+  numGames: 34;
+  game: {
+    numPeriods: 4;
+    quarterLength: 10;
+    overtimeLength: 5;
+    numPlayersOnCourt: 5;
+    foulsNeededToFoulOut: 5;
+    foulsUntilBonus: [5, 5, 5];
+    threePointers: true;
+    homeCourtAdvantage: number;
+    neutralSite: 'finals';
+  };
+  simulation: {
+    pace: number;
+    paceIsPer48: boolean;
+    threePointTendencyFactor: number;
+    threePointAccuracyFactor: number;
+    twoPointAccuracyFactor: number;
+    ftAccuracyFactor: number;
+    blockFactor: number;
+    stealFactor: number;
+    turnoverFactor: number;
+    orbFactor: number;
+    foulRateFactor: number;
+    assistFactor: number;
+  };
+  playoffs: {
+    playIn: false;
+    playoffsByConf: true;
+    playoffsNumTeamsPerConf: 4;
+    playoffsReseed: false;
+    numPlayoffByes: 0;
+    numGamesPlayoffSeries: [7, 7, 7];
+    format: [
+      'Conference A semifinals',
+      'Conference B semifinals',
+      'conference finals',
+      'BSN Final'
+    ];
+    finalsMatchup: 'Conference A champion vs Conference B champion';
+  };
+  bsnImports: {
+    maxImportsPerTeam: 3;
+    maxImportChangesBeforeDeadline: 6;
+    maxImportChangesAfterDeadline: 2;
+    importForImportTradesOnly: true;
+  };
 };
 
 export type PlayerBoxScore = {
@@ -88,9 +126,12 @@ export type PlayerBoxScore = {
   minutes: number;
   points: number;
   rebounds: number;
+  offensiveRebounds: number;
+  defensiveRebounds: number;
   assists: number;
   steals: number;
   blocks: number;
+  fouls: number;
   turnovers: number;
   fgm: number;
   fga: number;

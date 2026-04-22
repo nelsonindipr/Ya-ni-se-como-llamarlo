@@ -33,7 +33,8 @@ function App() {
     <main>
       <h1>BSN 2026 Manager — v0.1 MVP</h1>
       <p>
-        {leagueRules.quarters} x {leagueRules.quarterLengthMinutes}-minute quarters ({leagueRules.gameLengthMinutes}-minute FIBA game)
+        {leagueRules.game.numPeriods} x {leagueRules.game.quarterLength}-minute quarters (
+        {leagueRules.game.numPeriods * leagueRules.game.quarterLength}-minute FIBA game)
       </p>
 
       <MatchupSelector
