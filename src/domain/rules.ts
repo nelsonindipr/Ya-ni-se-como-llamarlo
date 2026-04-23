@@ -15,18 +15,18 @@ export const leagueRules: LeagueRules = {
     neutralSite: 'finals'
   },
   simulation: {
-    pace: 82,
+    pace: 81,
     paceIsPer48: true,
     threePointTendencyFactor: 1.5,
-    threePointAccuracyFactor: 0.9,
-    twoPointAccuracyFactor: 1.03,
+    threePointAccuracyFactor: 0.89,
+    twoPointAccuracyFactor: 1,
     ftAccuracyFactor: 0.9,
     blockFactor: 7,
     stealFactor: 1.2,
-    turnoverFactor: 1.14,
+    turnoverFactor: 1.18,
     orbFactor: 1.6,
     foulRateFactor: 2.1,
-    assistFactor: 1.13
+    assistFactor: 1.1
   },
   playoffs: {
     playIn: false,

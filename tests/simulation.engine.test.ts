@@ -30,8 +30,8 @@ describe('simulateGame', () => {
     expect(sumMinutes(result.away.players)).toBeGreaterThanOrEqual(194);
     expect(sumMinutes(result.away.players)).toBeLessThanOrEqual(201);
 
-    expect(homeSorted[0].minutes).toBeGreaterThanOrEqual(26.5);
-    expect(awaySorted[0].minutes).toBeGreaterThanOrEqual(26.5);
+    expect(homeSorted[0].minutes).toBeGreaterThanOrEqual(27);
+    expect(awaySorted[0].minutes).toBeGreaterThanOrEqual(27);
 
     expect(homeSorted[0].minutes - homeSorted[11].minutes).toBeGreaterThanOrEqual(14);
     expect(awaySorted[0].minutes - awaySorted[11].minutes).toBeGreaterThanOrEqual(14);
