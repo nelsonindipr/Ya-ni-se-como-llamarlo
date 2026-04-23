@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { initialPlayers } from '../src/data/players';
 import { initialTeams } from '../src/data/teams';
 import type { ScheduledGame, Team } from '../src/domain/types';
+import { simulateGame } from '../src/simulation/engine';
 import { generateRegularSeasonSchedule } from '../src/simulation/schedule';
 import { clearSeasonState, loadSeasonState, saveSeasonState } from '../src/utils/storage';
 
@@ -38,8 +40,20 @@ beforeEach(() => {
 describe('season storage utility', () => {
   it('saving and loading restores schedule progress', () => {
     const schedule = generateRegularSeasonSchedule(initialTeams, 2026);
+    const home = initialTeams.find((team) => team.id === schedule[0].homeTeamId)!;
+    const away = initialTeams.find((team) => team.id === schedule[0].awayTeamId)!;
+    const gameResult = simulateGame(home, away, initialPlayers, 999001);
     const playedSchedule: ScheduledGame[] = schedule.map((g, i) =>
-      i < 3 ? { ...g, played: true, resultId: `res-${i}`, homeScore: 80 + i, awayScore: 75 + i } : g
+      i < 3
+        ? {
+            ...g,
+            played: true,
+            resultId: `res-${i}`,
+            homeScore: 80 + i,
+            awayScore: 75 + i,
+            result: i === 0 ? gameResult : undefined
+          }
+        : g
     );
 
     saveSeasonState({
@@ -48,6 +62,7 @@ describe('season storage utility', () => {
       schedule: playedSchedule,
       teams: resetTeams(),
       game: null,
+      selectedScheduledGameId: null,
       showOverall: true,
       playoffBracket: null
     });
@@ -55,6 +70,7 @@ describe('season storage utility', () => {
     const loaded = loadSeasonState();
     expect(loaded).not.toBeNull();
     expect(loaded?.schedule.filter((g) => g.played)).toHaveLength(3);
+    expect(loaded?.schedule[0].result?.home.players.length).toBeGreaterThan(0);
     expect(loaded?.scheduleSeed).toBe(2026);
     expect(loaded?.showOverall).toBe(true);
   });
@@ -72,6 +88,7 @@ describe('season storage utility', () => {
       schedule: generateRegularSeasonSchedule(initialTeams, 7),
       teams,
       game: null,
+      selectedScheduledGameId: null,
       showOverall: false,
       playoffBracket: null
     });
@@ -90,6 +107,7 @@ describe('season storage utility', () => {
       schedule: generateRegularSeasonSchedule(initialTeams, 8),
       teams: resetTeams(),
       game: null,
+      selectedScheduledGameId: null,
       showOverall: false,
       playoffBracket: null
     });

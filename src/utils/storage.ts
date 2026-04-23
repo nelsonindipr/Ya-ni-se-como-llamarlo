@@ -9,6 +9,7 @@ type PersistedSeasonState = {
   schedule: ScheduledGame[];
   teams: Team[];
   game: GameResult | null;
+  selectedScheduledGameId?: string | null;
   showOverall: boolean;
   playoffBracket: PlayoffBracket | null;
 };
@@ -16,6 +17,16 @@ type PersistedSeasonState = {
 const knownTeamIds = new Set(initialTeams.map((t) => t.id));
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+
+const isValidGameResult = (result: unknown): result is GameResult => {
+  if (!result || typeof result !== 'object') return false;
+  const gameResult = result as GameResult;
+  if (typeof gameResult.id !== 'string' || !gameResult.id) return false;
+  if (!gameResult.home || !gameResult.away) return false;
+  if (!isFiniteNumber(gameResult.home.score) || !isFiniteNumber(gameResult.away.score)) return false;
+  if (!Array.isArray(gameResult.home.players) || !Array.isArray(gameResult.away.players)) return false;
+  return typeof gameResult.winnerTeamId === 'string' && !!gameResult.winnerTeamId;
+};
 
 const isValidScheduledGame = (game: unknown): game is ScheduledGame => {
   if (!game || typeof game !== 'object') return false;
@@ -29,6 +40,7 @@ const isValidScheduledGame = (game: unknown): game is ScheduledGame => {
   if (g.resultId !== undefined && typeof g.resultId !== 'string') return false;
   if (g.homeScore !== undefined && !isFiniteNumber(g.homeScore)) return false;
   if (g.awayScore !== undefined && !isFiniteNumber(g.awayScore)) return false;
+  if (g.result !== undefined && !isValidGameResult(g.result)) return false;
   return true;
 };
 
@@ -56,6 +68,9 @@ export const isValidPersistedSeasonState = (value: unknown): value is PersistedS
   if (!Array.isArray(state.schedule) || state.schedule.length !== 204) return false;
   if (!Array.isArray(state.teams) || state.teams.length !== initialTeams.length) return false;
   if (typeof state.showOverall !== 'boolean') return false;
+  if (state.selectedScheduledGameId !== undefined && state.selectedScheduledGameId !== null && typeof state.selectedScheduledGameId !== 'string') {
+    return false;
+  }
   if (state.playoffBracket !== null && (typeof state.playoffBracket !== 'object' || !('generated' in state.playoffBracket))) return false;
 
   if (!state.schedule.every(isValidScheduledGame)) return false;
@@ -71,7 +86,14 @@ export const isValidPersistedSeasonState = (value: unknown): value is PersistedS
 
   if ([...teamGameCounts.values()].some((count) => count !== 34)) return false;
 
-  return state.game === null || typeof state.game === 'object';
+  if (state.game !== null && !isValidGameResult(state.game)) return false;
+
+  if (state.selectedScheduledGameId) {
+    const selectedGame = state.schedule.find((game) => game.id === state.selectedScheduledGameId);
+    if (!selectedGame || !selectedGame.played || !selectedGame.result) return false;
+  }
+
+  return true;
 };
 
 export const saveSeasonState = (state: PersistedSeasonState): void => {

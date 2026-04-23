@@ -38,3 +38,11 @@ td {
   padding: 0.35rem;
   font-size: 0.83rem;
 }
+
+tr.played-scheduled-game {
+  cursor: pointer;
+}
+
+tr.selected-scheduled-game td {
+  background: #e1edff;
+}

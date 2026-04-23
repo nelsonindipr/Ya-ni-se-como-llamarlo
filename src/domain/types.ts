@@ -165,6 +165,7 @@ export type ScheduledGame = {
   resultId?: string;
   homeScore?: number;
   awayScore?: number;
+  result?: GameResult;
 };
 
 export type StandingRow = Team & {
