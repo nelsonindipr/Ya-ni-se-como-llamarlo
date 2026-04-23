@@ -1,6 +1,6 @@
 import { initialPlayers } from '../src/data/players';
 import { initialTeams } from '../src/data/teams';
-import { generateRegularSeasonSchedule } from '../src/simulation/schedule';
+import { generateRegularSeasonSchedule, rivalryPairs, validateRegularSeasonSchedule } from '../src/simulation/schedule';
 import { simulateGame } from '../src/simulation/engine';
 
 type Sample = {
@@ -17,6 +17,8 @@ type Sample = {
 
 const SEASONS = 12;
 const BASE_SEED = 2026;
+
+const pairKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 const teamSampleFromBox = (team: { score: number; players: any[] }): Sample => {
   const totals = team.players.reduce(
@@ -42,10 +44,27 @@ const teamSampleFromBox = (team: { score: number; players: any[] }): Sample => {
 
 const pct = (made: number, att: number): number => (att > 0 ? (made / att) * 100 : 0);
 
+const countMeetings = (schedule: ReturnType<typeof generateRegularSeasonSchedule>): Map<string, number> => {
+  const counts = new Map<string, number>();
+  for (const game of schedule) {
+    const key = pairKey(game.homeTeamId, game.awayTeamId);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+};
+
 const runSeasonPathAudit = () => {
   const teamById = new Map(initialTeams.map((t) => [t.id, t]));
   const samples: Sample[] = [];
   const teamScores: number[] = [];
+
+  const firstSeasonSchedule = generateRegularSeasonSchedule(initialTeams, BASE_SEED);
+  const sameSeedSchedule = generateRegularSeasonSchedule(initialTeams, BASE_SEED);
+  const differentSeedSchedule = generateRegularSeasonSchedule(initialTeams, BASE_SEED + 1);
+  const firstSeasonValidation = validateRegularSeasonSchedule(firstSeasonSchedule, initialTeams);
+
+  const pairCounts = countMeetings(firstSeasonSchedule);
+  const rivalrySummary = rivalryPairs.map(([a, b]) => ({ pair: `${a}-${b}`, meetings: pairCounts.get(pairKey(a, b)) ?? 0 }));
 
   for (let season = 0; season < SEASONS; season += 1) {
     const scheduleSeed = BASE_SEED + season;
@@ -97,6 +116,14 @@ const runSeasonPathAudit = () => {
       {
         seasonsSimulated: SEASONS,
         gamesSimulated: SEASONS * 204,
+        scheduleValidation: {
+          valid: firstSeasonValidation.valid,
+          errorCount: firstSeasonValidation.errors.length,
+          sampleErrors: firstSeasonValidation.errors.slice(0, 5),
+          sameSeedStable: JSON.stringify(firstSeasonSchedule) === JSON.stringify(sameSeedSchedule),
+          differentSeedChanges: JSON.stringify(firstSeasonSchedule) !== JSON.stringify(differentSeedSchedule),
+          rivalrySummary
+        },
         teamSamples: n,
         averages: {
           teamPoints: sums.points / n,

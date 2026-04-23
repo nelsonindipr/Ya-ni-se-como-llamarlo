@@ -3,10 +3,12 @@ import { initialPlayers } from '../src/data/players';
 import { initialTeams } from '../src/data/teams';
 import type { GameResult, ScheduledGame, Team } from '../src/domain/types';
 import { simulateGame } from '../src/simulation/engine';
-import { generateRegularSeasonSchedule, validateRegularSeasonSchedule } from '../src/simulation/schedule';
+import { generateRegularSeasonSchedule, rivalryPairs, validateRegularSeasonSchedule } from '../src/simulation/schedule';
 import { applyGameToStandings } from '../src/simulation/standings';
 
 const resetTeams = (): Team[] => initialTeams.map((team) => ({ ...team, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 }));
+
+const pairKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 describe('regular season schedule generation', () => {
   it('same seed creates the same schedule', () => {
@@ -23,7 +25,7 @@ describe('regular season schedule generation', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('matches game count and per-team constraints', () => {
+  it('matches BSN 2026 game-count and pair-model constraints', () => {
     const schedule = generateRegularSeasonSchedule(initialTeams, 42);
     const validation = validateRegularSeasonSchedule(schedule, initialTeams);
 
@@ -32,6 +34,7 @@ describe('regular season schedule generation', () => {
     expect(validation.errors).toHaveLength(0);
 
     const teamCounts = new Map<string, { total: number; home: number; away: number }>();
+    const pairCounts = new Map<string, number>();
     for (const team of initialTeams) teamCounts.set(team.id, { total: 0, home: 0, away: 0 });
 
     for (const game of schedule) {
@@ -40,11 +43,36 @@ describe('regular season schedule generation', () => {
       teamCounts.get(game.homeTeamId)!.home += 1;
       teamCounts.get(game.awayTeamId)!.total += 1;
       teamCounts.get(game.awayTeamId)!.away += 1;
+
+      const key = pairKey(game.homeTeamId, game.awayTeamId);
+      pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
     }
 
     for (const [, counts] of teamCounts) {
       expect(counts.total).toBe(34);
-      expect(Math.abs(counts.home - counts.away)).toBeLessThanOrEqual(3);
+      expect(Math.abs(counts.home - counts.away)).toBeLessThanOrEqual(2);
+    }
+
+    const rivalryKeys = new Set(rivalryPairs.map(([a, b]) => pairKey(a, b)));
+    for (let i = 0; i < initialTeams.length; i += 1) {
+      for (let j = i + 1; j < initialTeams.length; j += 1) {
+        const a = initialTeams[i];
+        const b = initialTeams[j];
+        const count = pairCounts.get(pairKey(a.id, b.id)) ?? 0;
+
+        if (a.conference !== b.conference) expect(count).toBe(2);
+        else if (rivalryKeys.has(pairKey(a.id, b.id))) expect(count).toBe(6);
+        else expect(count).toBe(4);
+      }
+    }
+  });
+
+  it('avoids immediate identical matchup repeats for full schedule ordering', () => {
+    const schedule = generateRegularSeasonSchedule(initialTeams, 9090);
+    for (let i = 1; i < schedule.length; i += 1) {
+      const prev = pairKey(schedule[i - 1].homeTeamId, schedule[i - 1].awayTeamId);
+      const current = pairKey(schedule[i].homeTeamId, schedule[i].awayTeamId);
+      expect(current).not.toBe(prev);
     }
   });
 });
