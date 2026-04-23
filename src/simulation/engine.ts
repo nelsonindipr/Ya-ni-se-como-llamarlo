@@ -84,6 +84,8 @@ const normalizePossessions = (homePace: number, awayPace: number, rng: RandomSou
   const meanPace = (homePace + awayPace) / 2;
   const base = perTeamPaceTarget + Math.round((meanPace - 0.27) * 24);
   return Math.max(perTeamPaceTarget - 6, Math.min(perTeamPaceTarget + 6, base + randomInt(-2, 2, rng)));
+  const base = 76 + Math.round((meanPace - 0.27) * 35);
+  return Math.max(70, Math.min(84, base + randomInt(-2, 2, rng)));
 };
 
 const initBox = (players: Player[]): PlayerBoxScore[] =>
@@ -160,6 +162,7 @@ const targetMinutesForGameState = (
     target -= 6;
   }
   if (quarter === 4 && ps.fouls >= leagueRules.game.foulsNeededToFoulOut) target -= 7;
+  if (quarter === 4 && ps.fouls >= 5) target -= 7;
 
   const fatiguePenalty = Math.max(0, ps.fatigue - 0.6) * 10;
   target -= fatiguePenalty;
@@ -283,6 +286,178 @@ const applyPossession = (
   const defMean = defLineup.reduce((sum, p) => sum + p.overall, 0) / defLineup.length;
   const teamFatigue = offLineup.reduce((sum, p) => sum + p.fatigue, 0) / offLineup.length;
 
+
+  return score;
+};
+
+const chooseBestLineup = (
+  states: PlayerState[],
+  quarter: number,
+  secondsLeft: number,
+  scoreMargin: number,
+  rng: RandomSource
+): string[] => {
+  let bestIds = states.slice(0, 5).map((s) => s.player.id);
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < states.length - 4; i += 1) {
+    for (let j = i + 1; j < states.length - 3; j += 1) {
+      for (let k = j + 1; k < states.length - 2; k += 1) {
+        for (let l = k + 1; l < states.length - 1; l += 1) {
+          for (let m = l + 1; m < states.length; m += 1) {
+            const lineup = [states[i], states[j], states[k], states[l], states[m]];
+            const score = lineupScore(lineup, quarter, secondsLeft, scoreMargin) + rng() * 0.25;
+            if (score > bestScore) {
+              bestScore = score;
+              bestIds = lineup.map((p) => p.player.id);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return bestIds;
+};
+
+const quarterFromElapsed = (elapsedSeconds: number): number =>
+  Math.min(leagueRules.game.numPeriods, Math.floor(elapsedSeconds / (leagueRules.game.quarterLength * 60)) + 1);
+
+const updateFatigue = (state: TeamSimState, tickSeconds: number): void => {
+  const onCourt = new Set(state.lineup);
+  for (const ps of state.states) {
+    const staminaFactor = (100 - ps.player.ratings.stamina) / 100;
+    if (onCourt.has(ps.player.id)) {
+      ps.secondsPlayed += tickSeconds;
+      ps.stintSeconds += tickSeconds;
+      const stintTax = Math.max(0, ps.stintSeconds - 180) / 900;
+      ps.fatigue = Math.min(1, ps.fatigue + tickSeconds * (0.0007 + staminaFactor * 0.0015 + stintTax * 0.001));
+    } else {
+      ps.stintSeconds = 0;
+      ps.fatigue = Math.max(0, ps.fatigue - tickSeconds * (0.001 + ps.player.ratings.stamina * 0.00001));
+    }
+  }
+};
+
+const applyPossession = (
+  offense: TeamSimState,
+  defense: TeamSimState,
+  quarter: number,
+  secondsLeftInQuarter: number,
+  marginForOffense: number,
+  offenseBoost: number,
+  rng: RandomSource
+): number => {
+  const offLineup = offense.states.filter((s) => offense.lineup.includes(s.player.id));
+  const defLineup = defense.states.filter((s) => defense.lineup.includes(s.player.id));
+
+  const offMean = offLineup.reduce((sum, p) => sum + p.overall, 0) / offLineup.length;
+  const defMean = defLineup.reduce((sum, p) => sum + p.overall, 0) / defLineup.length;
+  const teamFatigue = offLineup.reduce((sum, p) => sum + p.fatigue, 0) / offLineup.length;
+
+
+  for (const ps of lineup) {
+    const target = targetMinutesForGameState(ps, quarter, secondsLeft, scoreMargin);
+    const currentMin = ps.secondsPlayed / 60;
+    const minutePressure = target - currentMin;
+    const fatigueHit = ps.fatigue * 18;
+    const foulHit = ps.fouls >= 5 ? 35 : ps.fouls * 3;
+    const talent = ps.overall + ps.player.ratings.playmaking * 0.12 + ps.player.ratings.rebounding * 0.08;
+
+    score += talent + minutePressure * 2.9 - fatigueHit - foulHit;
+
+    if (['PG', 'SG'].includes(ps.player.position)) guards += 1;
+    if (['PF', 'C'].includes(ps.player.position)) bigs += 1;
+  }
+
+  const hasHandler = lineupHas(
+    lineup,
+    (p) => p.player.role === 'primary_ball_handler' || p.player.role === 'secondary_creator' || (p.player.position === 'PG' && p.player.ratings.playmaking >= 72)
+  );
+  const hasWing = lineupHas(
+    lineup,
+    (p) => ['SG', 'SF'].includes(p.player.position) || ['wing_scorer', '3_and_d'].includes(p.player.role)
+  );
+  const hasBig = lineupHas(lineup, (p) => ['PF', 'C'].includes(p.player.position));
+  const hasRimReb = lineupHas(
+    lineup,
+    (p) => p.player.role === 'rim_protector' || p.player.position === 'C' || p.player.ratings.rebounding >= 76 || p.player.ratings.interiorDefense >= 78
+  );
+
+  if (!hasHandler) score -= 24;
+  if (!hasWing) score -= 16;
+  if (!hasBig) score -= 18;
+  if (!hasRimReb) score -= 14;
+
+  if (guards >= 5 || bigs >= 5) score -= 40;
+  if (guards >= 4 || bigs >= 4) score -= 18;
+
+  return score;
+};
+
+const chooseBestLineup = (
+  states: PlayerState[],
+  quarter: number,
+  secondsLeft: number,
+  scoreMargin: number,
+  rng: RandomSource
+): string[] => {
+  let bestIds = states.slice(0, 5).map((s) => s.player.id);
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < states.length - 4; i += 1) {
+    for (let j = i + 1; j < states.length - 3; j += 1) {
+      for (let k = j + 1; k < states.length - 2; k += 1) {
+        for (let l = k + 1; l < states.length - 1; l += 1) {
+          for (let m = l + 1; m < states.length; m += 1) {
+            const lineup = [states[i], states[j], states[k], states[l], states[m]];
+            const score = lineupScore(lineup, quarter, secondsLeft, scoreMargin) + rng() * 0.25;
+            if (score > bestScore) {
+              bestScore = score;
+              bestIds = lineup.map((p) => p.player.id);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return bestIds;
+};
+
+const quarterFromElapsed = (elapsedSeconds: number): number => Math.min(4, Math.floor(elapsedSeconds / 600) + 1);
+
+const updateFatigue = (state: TeamSimState, tickSeconds: number): void => {
+  const onCourt = new Set(state.lineup);
+  for (const ps of state.states) {
+    const staminaFactor = (100 - ps.player.ratings.stamina) / 100;
+    if (onCourt.has(ps.player.id)) {
+      ps.secondsPlayed += tickSeconds;
+      ps.stintSeconds += tickSeconds;
+      const stintTax = Math.max(0, ps.stintSeconds - 180) / 900;
+      ps.fatigue = Math.min(1, ps.fatigue + tickSeconds * (0.0007 + staminaFactor * 0.0015 + stintTax * 0.001));
+    } else {
+      ps.stintSeconds = 0;
+      ps.fatigue = Math.max(0, ps.fatigue - tickSeconds * (0.001 + ps.player.ratings.stamina * 0.00001));
+    }
+  }
+};
+
+const applyPossession = (
+  offense: TeamSimState,
+  defense: TeamSimState,
+  quarter: number,
+  secondsLeftInQuarter: number,
+  marginForOffense: number,
+  rng: RandomSource
+): number => {
+  const offLineup = offense.states.filter((s) => offense.lineup.includes(s.player.id));
+  const defLineup = defense.states.filter((s) => defense.lineup.includes(s.player.id));
+
+  const offMean = offLineup.reduce((sum, p) => sum + p.overall, 0) / offLineup.length;
+  const defMean = defLineup.reduce((sum, p) => sum + p.overall, 0) / defLineup.length;
+  const teamFatigue = offLineup.reduce((sum, p) => sum + p.fatigue, 0) / offLineup.length;
+
   const shooter = chooseByWeight(
     offLineup,
     (p) => {
@@ -307,12 +482,17 @@ const applyPossession = (
         (teamFatigue - 0.32) * 0.05 -
         (passingValue - 74) * 0.0012) *
         leagueRules.simulation.turnoverFactor
+      0.125 +
+        (defMean - offMean) * 0.0013 +
+        (teamFatigue - 0.32) * 0.05 -
+        (passingValue - 74) * 0.0012
     )
   );
 
   if (rng() < turnoverProb) {
     shooterRow.turnovers += 1;
     if (rng() < 0.32 * leagueRules.simulation.stealFactor) {
+    if (rng() < 0.32) {
       const stealer = chooseByWeight(defLineup, (p) => p.player.ratings.perimeterDefense * (1 - p.fatigue * 0.5), rng);
       const stealerRow = defense.box.find((b) => b.playerId === stealer.player.id);
       if (stealerRow) stealerRow.steals += 1;
@@ -339,6 +519,23 @@ const applyPossession = (
   const zoneRoll = rng();
   const shot3Rate = Math.min(0.7, shooter.player.tendencies.shot3Rate * leagueRules.simulation.threePointTendencyFactor);
   const shootThree = zoneRoll < shot3Rate;
+
+  const nonShootingFoulProb =
+    0.03 * leagueRules.simulation.foulRateFactor * bonusMultiplier * (1 + teamFatigue * 0.12);
+  if (rng() < nonShootingFoulProb) {
+    const defender = chooseByWeight(defLineup, (p) => p.player.ratings.interiorDefense + p.player.ratings.perimeterDefense, rng);
+    const defenderRow = defense.box.find((b) => b.playerId === defender.player.id);
+    defender.fouls += 1;
+    if (defenderRow) defenderRow.fouls += 1;
+    defense.teamFoulsByPeriod[foulLimitIdx] = (defense.teamFoulsByPeriod[foulLimitIdx] ?? 0) + 1;
+    return 0;
+  }
+
+  const zoneRoll = rng();
+  const shot3Rate = Math.min(0.7, shooter.player.tendencies.shot3Rate * leagueRules.simulation.threePointTendencyFactor);
+  const shootThree = zoneRoll < shot3Rate;
+  const zoneRoll = rng();
+  const shootThree = zoneRoll < shooter.player.tendencies.shot3Rate;
   const shootInside = zoneRoll > 1 - shooter.player.tendencies.driveRate;
   const shotRating = shootThree
     ? shooter.player.ratings.threePointScoring
@@ -350,18 +547,42 @@ const applyPossession = (
     defLineup.reduce(
       (sum, p) =>
         sum +
-        (shootInside ? p.player.ratings.interiorDefense * 1.1 : p.player.ratings.perimeterDefense) * (1 - p.fatigue * 0.28),
+        (shootInside ? p.player.ratings.interiorDefense * 1.1 : p.player.ratings.perimeterDefense) * (1 - p.fatigue * 0.35),
       0
     ) / defLineup.length;
 
-  let makeProb = 0.432 + (shotRating - defenseRating) * 0.005;
-  makeProb += shootThree ? -0.04 : 0.04;
+  let makeProb = 0.425 + (shotRating - defenseRating) * 0.005;
+  makeProb += shootThree ? -0.045 : 0.035;
   makeProb *= shootThree ? leagueRules.simulation.threePointAccuracyFactor : leagueRules.simulation.twoPointAccuracyFactor;
   makeProb *= offenseBoost;
-  makeProb -= shooter.fatigue * 0.065;
+
+  let makeProb = 0.425 + (shotRating - defenseRating) * 0.005;
+  makeProb += shootThree ? -0.045 : 0.035;
+  makeProb *= shootThree ? leagueRules.simulation.threePointAccuracyFactor : leagueRules.simulation.twoPointAccuracyFactor;
+  makeProb *= offenseBoost;
+  makeProb -= shooter.fatigue * 0.09;
   makeProb += Math.max(-0.02, Math.min(0.02, marginForOffense * -0.0012));
   if (quarter === 4 && secondsLeftInQuarter <= 120) makeProb += shootThree ? 0.003 : -0.003;
-  makeProb = Math.max(0.22, Math.min(0.7, makeProb));
+  makeProb = Math.max(0.2, Math.min(0.69, makeProb));
+
+  shooterRow.fga += 1;
+  if (shootThree) shooterRow.tpa += 1;
+
+
+  const defenseRating =
+    defLineup.reduce(
+      (sum, p) =>
+        sum +
+        (shootInside ? p.player.ratings.interiorDefense * 1.1 : p.player.ratings.perimeterDefense) * (1 - p.fatigue * 0.35),
+      0
+    ) / defLineup.length;
+
+  let makeProb = 0.425 + (shotRating - defenseRating) * 0.005;
+  makeProb += shootThree ? -0.045 : 0.035;
+  makeProb -= shooter.fatigue * 0.09;
+  makeProb += Math.max(-0.02, Math.min(0.02, marginForOffense * -0.0012));
+  if (quarter === 4 && secondsLeftInQuarter <= 120) makeProb += shootThree ? 0.003 : -0.003;
+  makeProb = Math.max(0.2, Math.min(0.69, makeProb));
 
   shooterRow.fga += 1;
   if (shootThree) shooterRow.tpa += 1;
@@ -373,35 +594,12 @@ const applyPossession = (
     shooterRow.points += points;
 
     if (rng() < Math.min(0.9, 0.62 * leagueRules.simulation.assistFactor)) {
+    if (rng() < 0.62) {
       const assisterPool = offLineup.filter((p) => p.player.id !== shooter.player.id);
       const assister = chooseByWeight(assisterPool, (p) => p.player.ratings.playmaking * (1 - p.fatigue * 0.4), rng);
       const astRow = offense.box.find((b) => b.playerId === assister.player.id);
       if (astRow) astRow.assists += 1;
     }
-
-    const andOneChance = shootThree ? 0.012 : 0.045;
-    if (rng() < andOneChance * leagueRules.simulation.foulRateFactor) {
-      const defender = chooseByWeight(defLineup, (p) => p.player.ratings.interiorDefense + p.player.ratings.perimeterDefense, rng);
-      const defenderRow = defense.box.find((b) => b.playerId === defender.player.id);
-      defender.fouls += 1;
-      if (defenderRow) defenderRow.fouls += 1;
-      defense.teamFoulsByPeriod[foulLimitIdx] = (defense.teamFoulsByPeriod[foulLimitIdx] ?? 0) + 1;
-
-      shooterRow.fta += 1;
-      const ftProb = Math.max(
-        0.5,
-        Math.min(
-          0.94,
-          (0.62 + shooter.player.ratings.midRangeScoring * 0.0034 - shooter.fatigue * 0.08) * leagueRules.simulation.ftAccuracyFactor
-        )
-      );
-      if (rng() < ftProb) {
-        shooterRow.ftm += 1;
-        shooterRow.points += 1;
-        return points + 1;
-      }
-    }
-
     return points;
   }
 
@@ -411,6 +609,7 @@ const applyPossession = (
     leagueRules.simulation.foulRateFactor *
     bonusMultiplier *
     (1 + shooter.fatigue * 0.15);
+  const foulDraw = shooter.player.tendencies.foulDrawRate * 1.4 * (1 + shooter.fatigue * 0.15);
   if (rng() < foulDraw) {
     const defender = chooseByWeight(defLineup, (p) => p.player.ratings.interiorDefense + p.player.ratings.perimeterDefense, rng);
     const defenderRow = defense.box.find((b) => b.playerId === defender.player.id);
@@ -419,6 +618,8 @@ const applyPossession = (
     defense.teamFoulsByPeriod[foulLimitIdx] = (defense.teamFoulsByPeriod[foulLimitIdx] ?? 0) + 1;
 
     if (defender.fouls > leagueRules.game.foulsNeededToFoulOut && defenderRow) {
+
+    if (defender.fouls >= 6 && defenderRow) {
       // mark severe foul trouble so lineup engine naturally benches out.
       defender.fatigue = Math.max(defender.fatigue, 0.82);
     }
@@ -435,6 +636,7 @@ const applyPossession = (
           (0.62 + shooter.player.ratings.midRangeScoring * 0.0034 - shooter.fatigue * 0.08) * leagueRules.simulation.ftAccuracyFactor
         )
       );
+      const ftProb = Math.max(0.5, Math.min(0.94, 0.62 + shooter.player.ratings.midRangeScoring * 0.0034 - shooter.fatigue * 0.08));
       if (rng() < ftProb) {
         shooterRow.ftm += 1;
         shooterRow.points += 1;
@@ -476,6 +678,7 @@ const applyPossession = (
     0.05,
     Math.min(0.32, (0.052 + (defRebStrength - offRebStrength) * 0.0012) * leagueRules.simulation.blockFactor)
   );
+  const blockChance = Math.max(0.02, Math.min(0.12, 0.045 + (defRebStrength - offRebStrength) * 0.001));
   if (shootInside && rng() < blockChance) {
     const blocker = chooseByWeight(defLineup, (p) => p.player.ratings.interiorDefense, rng);
     const blockRow = defense.box.find((b) => b.playerId === blocker.player.id);
@@ -486,6 +689,7 @@ const applyPossession = (
     0.16,
     Math.min(0.42, (0.24 + (offRebStrength - defRebStrength) * 0.0022) * leagueRules.simulation.orbFactor)
   );
+  const offRebChance = Math.max(0.14, Math.min(0.31, 0.21 + (offRebStrength - defRebStrength) * 0.0018));
   if (rng() < offRebChance) {
     const rebounder = chooseByWeight(offLineup, (p) => p.player.ratings.rebounding * (1 - p.fatigue * 0.4), rng);
     const rebRow = offense.box.find((b) => b.playerId === rebounder.player.id);
@@ -494,6 +698,7 @@ const applyPossession = (
       rebRow.offensiveRebounds += 1;
     }
     return applyPossession(offense, defense, quarter, secondsLeftInQuarter, marginForOffense, offenseBoost, rng);
+    return applyPossession(offense, defense, quarter, secondsLeftInQuarter, marginForOffense, rng);
   }
 
   const defensiveRebounder = chooseByWeight(defLineup, (p) => p.player.ratings.rebounding * (1 - p.fatigue * 0.4), rng);
@@ -528,6 +733,8 @@ const createTeamSimState = (context: TeamContext): TeamSimState => {
     lineup: states.slice(0, leagueRules.game.numPlayersOnCourt).map((s) => s.player.id),
     box: initBox(context.players),
     teamFoulsByPeriod: Array.from({ length: leagueRules.game.numPeriods }, () => 0)
+    lineup: states.slice(0, 5).map((s) => s.player.id),
+    box: initBox(context.players)
   };
 };
 
@@ -559,6 +766,13 @@ export const simulateGame = (
 
   const possessionsPerTeam = normalizePossessions(homeContext.pace, awayContext.pace, rng);
   const expectedTotalPossessions = possessionsPerTeam * 2;
+
+  const home = createTeamSimState(homeContext);
+  const away = createTeamSimState(awayContext);
+
+  const possessionsPerTeam = normalizePossessions(homeContext.pace, awayContext.pace, rng);
+  const expectedTotalPossessions = possessionsPerTeam * 2;
+  const totalPossessions = possessionsPerTeam * 2;
 
   let homeScore = 0;
   let awayScore = 0;
@@ -601,6 +815,54 @@ export const simulateGame = (
     }
 
     homeOnOffense = !homeOnOffense;
+
+  for (let i = 0; elapsedSeconds < totalGameSeconds; i += 1) {
+    const remainingTime = totalGameSeconds - elapsedSeconds;
+    const remainingPossessions = Math.max(1, expectedTotalPossessions - i);
+    const avgTick = remainingTime / remainingPossessions;
+    const tickSeconds = Math.max(8, Math.min(24, Math.round(avgTick + randomInt(-4, 4, rng))));
+    elapsedSeconds = Math.min(totalGameSeconds, elapsedSeconds + tickSeconds);
+
+    const quarter = quarterFromElapsed(elapsedSeconds);
+    const quarterLengthSeconds = leagueRules.game.quarterLength * 60;
+    const quarterStart = (quarter - 1) * quarterLengthSeconds;
+    const secondsLeftInQuarter = quarterLengthSeconds - (elapsedSeconds - quarterStart);
+
+  for (let i = 0; i < totalPossessions; i += 1) {
+    const tickSeconds = randomInt(11, 24, rng);
+    elapsedSeconds = Math.min(2400, elapsedSeconds + tickSeconds);
+
+    const quarter = quarterFromElapsed(elapsedSeconds);
+    const quarterStart = (quarter - 1) * 600;
+    const secondsLeftInQuarter = 600 - (elapsedSeconds - quarterStart);
+
+    const margin = homeScore - awayScore;
+
+    if (i % 3 === 0 || quarterStart === elapsedSeconds) {
+      home.lineup = chooseBestLineup(home.states, quarter, secondsLeftInQuarter, margin, rng);
+      away.lineup = chooseBestLineup(away.states, quarter, secondsLeftInQuarter, -margin, rng);
+    }
+
+    updateFatigue(home, tickSeconds);
+    updateFatigue(away, tickSeconds);
+
+    if (homeOnOffense) {
+      const points = applyPossession(home, away, quarter, secondsLeftInQuarter, margin, hcaBoost, rng);
+      homeScore += points;
+      possessionEvents.push({ home: points, away: 0, quarter });
+    } else {
+      const points = applyPossession(away, home, quarter, secondsLeftInQuarter, -margin, 1, rng);
+      const points = applyPossession(home, away, quarter, secondsLeftInQuarter, margin, rng);
+      homeScore += points;
+      possessionEvents.push({ home: points, away: 0, quarter });
+    } else {
+      const points = applyPossession(away, home, quarter, secondsLeftInQuarter, -margin, rng);
+      awayScore += points;
+      possessionEvents.push({ home: 0, away: points, quarter });
+    }
+
+    homeOnOffense = !homeOnOffense;
+    if (elapsedSeconds >= 2400) break;
   }
 
   if (homeScore === awayScore) {

@@ -74,21 +74,12 @@ export const isValidPersistedSeasonState = (value: unknown): value is PersistedS
 
 export const saveSeasonState = (state: PersistedSeasonState): void => {
   if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // Ignore storage failures (private mode, blocked storage, quota exceeded).
-  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 };
 
 export const loadSeasonState = (): PersistedSeasonState | null => {
   if (typeof localStorage === 'undefined') return null;
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return null;
-  }
+  const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return null;
 
   try {
@@ -102,11 +93,7 @@ export const loadSeasonState = (): PersistedSeasonState | null => {
 
 export const clearSeasonState = (): void => {
   if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Ignore storage failures.
-  }
+  localStorage.removeItem(STORAGE_KEY);
 };
 
 export type { PersistedSeasonState };

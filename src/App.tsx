@@ -16,12 +16,9 @@ const initialSeed = 2026;
 const resetTeams = (): Team[] =>
   initialTeams.map((team) => ({ ...team, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 }));
 
-const teamWithCurrentRecord = (teamId: string, currentTeams: Team[]): Team | null => {
-  const fromCurrent = currentTeams.find((t) => t.id === teamId);
-  if (fromCurrent) return fromCurrent;
-  const fromInitial = initialTeams.find((t) => t.id === teamId);
-  return fromInitial ? { ...fromInitial, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 } : null;
-};
+const initialSeed = 2026;
+
+const resetTeams = (): Team[] => initialTeams.map((team) => ({ ...team, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 }));
 
 function App() {
   const [teams, setTeams] = useState<Team[]>(resetTeams);
@@ -32,6 +29,7 @@ function App() {
     generateRegularSeasonSchedule(initialTeams, initialSeed)
   );
   const [statusMessage, setStatusMessage] = useState('');
+  const [schedule, setSchedule] = useState<ScheduledGame[]>(() => generateRegularSeasonSchedule(initialTeams, initialSeed));
 
   const standings = useMemo(() => toStandingRows(teams), [teams]);
   const teamNameById = useMemo(() => new Map(initialTeams.map((t) => [t.id, t.name])), []);
@@ -66,12 +64,9 @@ function App() {
 
   const playScheduledGame = (scheduledGame: ScheduledGame): void => {
     if (scheduledGame.played) return;
-    const home = teamWithCurrentRecord(scheduledGame.homeTeamId, teams);
-    const away = teamWithCurrentRecord(scheduledGame.awayTeamId, teams);
-    if (!home || !away) {
-      setStatusMessage('Could not simulate game because one of the teams is missing from state.');
-      return;
-    }
+    const home = teams.find((t) => t.id === scheduledGame.homeTeamId);
+    const away = teams.find((t) => t.id === scheduledGame.awayTeamId);
+    if (!home || !away) return;
 
     const result = simulateGame(home, away, initialPlayers, scheduleSeed * 10_000 + scheduledGame.gameNumber);
     const nextTeams = applyGameToStandings(teams, result);
@@ -109,10 +104,7 @@ function App() {
 
   const simulateNextUnplayed = (): void => {
     const next = schedule.find((g) => !g.played);
-    if (!next) {
-      setStatusMessage('No unplayed games remaining.');
-      return;
-    }
+    if (!next) return;
     playScheduledGame(next);
   };
 
@@ -123,19 +115,12 @@ function App() {
     const remaining = schedule
       .filter((g) => !g.played)
       .sort((a, b) => a.gameNumber - b.gameNumber);
-    if (remaining.length === 0) {
-      setStatusMessage('No remaining games to simulate.');
-      return;
-    }
     const updates = new Map<string, { resultId: string; homeScore: number; awayScore: number }>();
 
     for (const g of remaining) {
-      const home = teamWithCurrentRecord(g.homeTeamId, currentTeams);
-      const away = teamWithCurrentRecord(g.awayTeamId, currentTeams);
-      if (!home || !away) {
-        setStatusMessage(`Skipped game #${g.gameNumber} due to missing team data.`);
-        continue;
-      }
+      const home = currentTeams.find((t) => t.id === g.homeTeamId);
+      const away = currentTeams.find((t) => t.id === g.awayTeamId);
+      if (!home || !away) continue;
 
       const result = simulateGame(home, away, initialPlayers, scheduleSeed * 10_000 + g.gameNumber);
       currentTeams = applyGameToStandings(currentTeams, result);
@@ -198,6 +183,71 @@ function App() {
     const nextShowOverall = !showOverall;
     setShowOverall(nextShowOverall);
     persistState(scheduleSeed, schedule, teams, game, nextShowOverall);
+  const playScheduledGame = (scheduledGame: ScheduledGame): void => {
+    if (scheduledGame.played) return;
+    const home = teams.find((t) => t.id === scheduledGame.homeTeamId);
+    const away = teams.find((t) => t.id === scheduledGame.awayTeamId);
+    if (!home || !away) return;
+
+    const result = simulateGame(home, away, initialPlayers, scheduleSeed * 10_000 + scheduledGame.gameNumber);
+
+    setGame(result);
+    setTeams((prev) => applyGameToStandings(prev, result));
+    setSchedule((prev) =>
+      prev.map((g) =>
+        g.id === scheduledGame.id
+          ? {
+              ...g,
+              played: true,
+              resultId: result.id,
+              homeScore: result.home.score,
+              awayScore: result.away.score
+            }
+          : g
+      )
+    );
+  };
+
+  const generateSchedule = (seed: number): void => {
+    setScheduleSeed(seed);
+    setSchedule(generateRegularSeasonSchedule(initialTeams, seed));
+    setTeams(resetTeams());
+    setGame(null);
+  };
+
+  const simulateNextUnplayed = (): void => {
+    const next = schedule.find((g) => !g.played);
+    if (!next) return;
+    playScheduledGame(next);
+  };
+
+  const simulateAllRemaining = (): void => {
+    let currentTeams = teams;
+    let finalResult: GameResult | null = null;
+
+    const remaining = schedule.filter((g) => !g.played).sort((a, b) => a.gameNumber - b.gameNumber);
+    const updates = new Map<string, { resultId: string; homeScore: number; awayScore: number }>();
+
+    for (const g of remaining) {
+      const home = currentTeams.find((t) => t.id === g.homeTeamId);
+      const away = currentTeams.find((t) => t.id === g.awayTeamId);
+      if (!home || !away) continue;
+
+      const result = simulateGame(home, away, initialPlayers, scheduleSeed * 10_000 + g.gameNumber);
+      currentTeams = applyGameToStandings(currentTeams, result);
+      updates.set(g.id, { resultId: result.id, homeScore: result.home.score, awayScore: result.away.score });
+      finalResult = result;
+    }
+
+    setTeams(currentTeams);
+    setSchedule((prev) =>
+      prev.map((g) => {
+        const update = updates.get(g.id);
+        if (!update) return g;
+        return { ...g, played: true, ...update };
+      })
+    );
+    if (finalResult) setGame(finalResult);
   };
 
   const remainingGames = schedule.filter((g) => !g.played).length;
@@ -241,6 +291,7 @@ function App() {
           </button>
         </div>
         {statusMessage ? <p>{statusMessage}</p> : null}
+        </div>
         <p>
           Regular season games: {schedule.length} | Remaining: {remainingGames}
         </p>
