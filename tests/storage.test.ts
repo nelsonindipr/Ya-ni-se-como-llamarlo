@@ -43,12 +43,13 @@ describe('season storage utility', () => {
     );
 
     saveSeasonState({
-      version: 2,
+      version: 3,
       scheduleSeed: 2026,
       schedule: playedSchedule,
       teams: resetTeams(),
       game: null,
-      showOverall: true
+      showOverall: true,
+      playoffBracket: null
     });
 
     const loaded = loadSeasonState();
@@ -66,12 +67,13 @@ describe('season storage utility', () => {
     teams[0].pointsAgainst = 1100;
 
     saveSeasonState({
-      version: 2,
+      version: 3,
       scheduleSeed: 7,
       schedule: generateRegularSeasonSchedule(initialTeams, 7),
       teams,
       game: null,
-      showOverall: false
+      showOverall: false,
+      playoffBracket: null
     });
 
     const loaded = loadSeasonState();
@@ -83,12 +85,13 @@ describe('season storage utility', () => {
 
   it('reset clears stored season state', () => {
     saveSeasonState({
-      version: 2,
+      version: 3,
       scheduleSeed: 8,
       schedule: generateRegularSeasonSchedule(initialTeams, 8),
       teams: resetTeams(),
       game: null,
-      showOverall: false
+      showOverall: false,
+      playoffBracket: null
     });
 
     clearSeasonState();
@@ -97,7 +100,7 @@ describe('season storage utility', () => {
   });
 
   it('invalid saved state does not crash and fails safely', () => {
-    localStorage.setItem('bsn-manager-season-v2', JSON.stringify({ version: 2, schedule: [] }));
+    localStorage.setItem('bsn-manager-season-v3', JSON.stringify({ version: 3, schedule: [] }));
 
     expect(loadSeasonState()).toBeNull();
   });
