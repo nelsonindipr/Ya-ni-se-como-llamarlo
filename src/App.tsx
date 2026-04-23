@@ -20,6 +20,7 @@ const resetTeams = (): Team[] =>
 function App() {
   const [teams, setTeams] = useState<Team[]>(resetTeams);
   const [game, setGame] = useState<GameResult | null>(null);
+  const [selectedScheduledGameId, setSelectedScheduledGameId] = useState<string | null>(null);
   const [showOverall, setShowOverall] = useState(false);
   const [scheduleSeed, setScheduleSeed] = useState(initialSeed);
   const [schedule, setSchedule] = useState<ScheduledGame[]>(() =>
@@ -36,6 +37,7 @@ function App() {
     nextSchedule: ScheduledGame[],
     nextTeams: Team[],
     nextGame: GameResult | null,
+    nextSelectedScheduledGameId: string | null,
     nextShowOverall: boolean,
     nextPlayoffBracket: PlayoffBracket | null
   ): void => {
@@ -45,6 +47,7 @@ function App() {
       schedule: nextSchedule,
       teams: nextTeams,
       game: nextGame,
+      selectedScheduledGameId: nextSelectedScheduledGameId,
       showOverall: nextShowOverall,
       playoffBracket: nextPlayoffBracket
     });
@@ -57,6 +60,7 @@ function App() {
     setSchedule(loaded.schedule);
     setTeams(loaded.teams);
     setGame(loaded.game);
+    setSelectedScheduledGameId(loaded.selectedScheduledGameId ?? null);
     setShowOverall(loaded.showOverall);
     setPlayoffBracket(loaded.playoffBracket);
     setStatusMessage('Loaded saved season from local storage.');
@@ -84,17 +88,19 @@ function App() {
             played: true,
             resultId: result.id,
             homeScore: result.home.score,
-            awayScore: result.away.score
+            awayScore: result.away.score,
+            result
           }
         : g
     );
     const nextPlayoffBracket = maybeGeneratePlayoffs(nextTeams, nextSchedule);
 
     setGame(result);
+    setSelectedScheduledGameId(scheduledGame.id);
     setTeams(nextTeams);
     setSchedule(nextSchedule);
     setPlayoffBracket(nextPlayoffBracket);
-    persistState(scheduleSeed, nextSchedule, nextTeams, result, showOverall, nextPlayoffBracket);
+    persistState(scheduleSeed, nextSchedule, nextTeams, result, scheduledGame.id, showOverall, nextPlayoffBracket);
     setStatusMessage(`Game #${scheduledGame.gameNumber} simulated and season auto-saved.`);
   };
 
@@ -106,9 +112,10 @@ function App() {
     setSchedule(nextSchedule);
     setTeams(nextTeams);
     setGame(null);
+    setSelectedScheduledGameId(null);
     setPlayoffBracket(null);
 
-    persistState(seed, nextSchedule, nextTeams, null, showOverall, null);
+    persistState(seed, nextSchedule, nextTeams, null, null, showOverall, null);
     setStatusMessage(`Generated schedule with seed ${seed} and auto-saved season.`);
   };
 
@@ -125,7 +132,7 @@ function App() {
     const remaining = schedule
       .filter((g) => !g.played)
       .sort((a, b) => a.gameNumber - b.gameNumber);
-    const updates = new Map<string, { resultId: string; homeScore: number; awayScore: number }>();
+    const updates = new Map<string, { resultId: string; homeScore: number; awayScore: number; result: GameResult }>();
 
     for (const g of remaining) {
       const home = currentTeams.find((t) => t.id === g.homeTeamId);
@@ -137,7 +144,8 @@ function App() {
       updates.set(g.id, {
         resultId: result.id,
         homeScore: result.home.score,
-        awayScore: result.away.score
+        awayScore: result.away.score,
+        result
       });
       finalResult = result;
     }
@@ -152,14 +160,22 @@ function App() {
     setTeams(currentTeams);
     setSchedule(nextSchedule);
     setPlayoffBracket(nextPlayoffBracket);
+    const selectedGameStillExists =
+      selectedScheduledGameId !== null && nextSchedule.some((scheduled) => scheduled.id === selectedScheduledGameId && scheduled.played);
+    const nextSelectedScheduledGameId = selectedGameStillExists
+      ? selectedScheduledGameId
+      : remaining.length > 0
+        ? remaining[remaining.length - 1].id
+        : selectedScheduledGameId;
+    setSelectedScheduledGameId(nextSelectedScheduledGameId);
     if (finalResult) setGame(finalResult);
 
-    persistState(scheduleSeed, nextSchedule, currentTeams, finalResult, showOverall, nextPlayoffBracket);
+    persistState(scheduleSeed, nextSchedule, currentTeams, finalResult, nextSelectedScheduledGameId, showOverall, nextPlayoffBracket);
     setStatusMessage('Simulated all remaining games and auto-saved season.');
   };
 
   const saveSeason = (): void => {
-    persistState(scheduleSeed, schedule, teams, game, showOverall, playoffBracket);
+    persistState(scheduleSeed, schedule, teams, game, selectedScheduledGameId, showOverall, playoffBracket);
     setStatusMessage('Season saved to local storage.');
   };
 
@@ -174,6 +190,7 @@ function App() {
     setSchedule(loaded.schedule);
     setTeams(loaded.teams);
     setGame(loaded.game);
+    setSelectedScheduledGameId(loaded.selectedScheduledGameId ?? null);
     setShowOverall(loaded.showOverall);
     setPlayoffBracket(loaded.playoffBracket);
     setStatusMessage('Season loaded from local storage.');
@@ -188,6 +205,7 @@ function App() {
     setSchedule(nextSchedule);
     setTeams(nextTeams);
     setGame(null);
+    setSelectedScheduledGameId(null);
     setShowOverall(false);
     setPlayoffBracket(null);
     setStatusMessage('Season reset and saved state cleared.');
@@ -196,7 +214,7 @@ function App() {
   const toggleOverall = (): void => {
     const nextShowOverall = !showOverall;
     setShowOverall(nextShowOverall);
-    persistState(scheduleSeed, schedule, teams, game, nextShowOverall, playoffBracket);
+    persistState(scheduleSeed, schedule, teams, game, selectedScheduledGameId, nextShowOverall, playoffBracket);
   };
 
   const remainingGames = schedule.filter((g) => !g.played).length;
@@ -224,7 +242,7 @@ function App() {
     if (!playoffBracket) return;
     const next = simulateNextPlayoffSeries(playoffBracket, teams, initialPlayers, scheduleSeed);
     setPlayoffBracket(next);
-    persistState(scheduleSeed, schedule, teams, game, showOverall, next);
+    persistState(scheduleSeed, schedule, teams, game, selectedScheduledGameId, showOverall, next);
     setStatusMessage('Simulated next playoff series and auto-saved season.');
   };
 
@@ -232,8 +250,20 @@ function App() {
     if (!playoffBracket) return;
     const next = simulateEntirePlayoffs(playoffBracket, teams, initialPlayers, scheduleSeed);
     setPlayoffBracket(next);
-    persistState(scheduleSeed, schedule, teams, game, showOverall, next);
+    persistState(scheduleSeed, schedule, teams, game, selectedScheduledGameId, showOverall, next);
     setStatusMessage('Simulated all remaining playoff series and auto-saved season.');
+  };
+
+  const selectedScheduledResult =
+    selectedScheduledGameId === null
+      ? null
+      : schedule.find((scheduled) => scheduled.id === selectedScheduledGameId)?.result ?? null;
+  const displayedGame = selectedScheduledResult ?? game;
+
+  const selectScheduledGame = (scheduledGame: ScheduledGame): void => {
+    if (!scheduledGame.played || !scheduledGame.result) return;
+    setSelectedScheduledGameId(scheduledGame.id);
+    persistState(scheduleSeed, schedule, teams, game, scheduledGame.id, showOverall, playoffBracket);
   };
 
   return (
@@ -290,13 +320,29 @@ function App() {
           </thead>
           <tbody>
             {schedule.map((sg) => (
-              <tr key={sg.id}>
+              <tr
+                key={sg.id}
+                className={[
+                  sg.played ? 'played-scheduled-game' : '',
+                  sg.id === selectedScheduledGameId ? 'selected-scheduled-game' : ''
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                onClick={() => selectScheduledGame(sg)}
+              >
                 <td>{sg.gameNumber}</td>
                 <td>{teamNameById.get(sg.awayTeamId)}</td>
                 <td>{teamNameById.get(sg.homeTeamId)}</td>
                 <td>{sg.played ? `${sg.awayScore} - ${sg.homeScore}` : 'Unplayed'}</td>
                 <td>
-                  <button type="button" onClick={() => playScheduledGame(sg)} disabled={sg.played}>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      playScheduledGame(sg);
+                    }}
+                    disabled={sg.played}
+                  >
                     Simulate
                   </button>
                 </td>
@@ -342,14 +388,14 @@ function App() {
         </section>
       ) : null}
 
-      {game ? (
+      {displayedGame ? (
         <section>
           <h2>
-            Final: {game.away.teamName} {game.away.score} - {game.home.score} {game.home.teamName}
+            Final: {displayedGame.away.teamName} {displayedGame.away.score} - {displayedGame.home.score} {displayedGame.home.teamName}
           </h2>
           <div className="grid">
-            <BoxScoreTable box={game.away} />
-            <BoxScoreTable box={game.home} />
+            <BoxScoreTable box={displayedGame.away} />
+            <BoxScoreTable box={displayedGame.home} />
           </div>
         </section>
       ) : null}
