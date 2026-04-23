@@ -1,10 +1,10 @@
 import { initialTeams } from '../data/teams';
 import type { GameResult, ScheduledGame, Team } from '../domain/types';
 
-export const STORAGE_KEY = 'bsn-manager-season-v1';
+export const STORAGE_KEY = 'bsn-manager-season-v2';
 
 type PersistedSeasonState = {
-  version: 1;
+  version: 2;
   scheduleSeed: number;
   schedule: ScheduledGame[];
   teams: Team[];
@@ -50,7 +50,7 @@ export const isValidPersistedSeasonState = (value: unknown): value is PersistedS
   if (!value || typeof value !== 'object') return false;
   const state = value as PersistedSeasonState;
 
-  if (state.version !== 1) return false;
+  if (state.version !== 2) return false;
   if (!isFiniteNumber(state.scheduleSeed)) return false;
   if (!Array.isArray(state.schedule) || state.schedule.length !== 204) return false;
   if (!Array.isArray(state.teams) || state.teams.length !== initialTeams.length) return false;

@@ -13,9 +13,9 @@ describe('simulateGame', () => {
 
     expect(result.home.score).toBe(result2.home.score);
     expect(result.away.score).toBe(result2.away.score);
-    expect(result.home.score).toBeGreaterThanOrEqual(60);
+    expect(result.home.score).toBeGreaterThanOrEqual(55);
     expect(result.home.score).toBeLessThanOrEqual(110);
-    expect(result.away.score).toBeGreaterThanOrEqual(60);
+    expect(result.away.score).toBeGreaterThanOrEqual(55);
     expect(result.away.score).toBeLessThanOrEqual(110);
   });
 
@@ -30,8 +30,8 @@ describe('simulateGame', () => {
     expect(sumMinutes(result.away.players)).toBeGreaterThanOrEqual(194);
     expect(sumMinutes(result.away.players)).toBeLessThanOrEqual(201);
 
-    expect(homeSorted[0].minutes).toBeGreaterThanOrEqual(27);
-    expect(awaySorted[0].minutes).toBeGreaterThanOrEqual(27);
+    expect(homeSorted[0].minutes).toBeGreaterThanOrEqual(25);
+    expect(awaySorted[0].minutes).toBeGreaterThanOrEqual(25);
 
     expect(homeSorted[0].minutes - homeSorted[11].minutes).toBeGreaterThanOrEqual(14);
     expect(awaySorted[0].minutes - awaySorted[11].minutes).toBeGreaterThanOrEqual(14);

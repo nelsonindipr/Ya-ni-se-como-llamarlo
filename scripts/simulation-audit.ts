@@ -94,6 +94,7 @@ const pairings = (): [string, string][] => {
 const runAudit = () => {
   const teamById = new Map(initialTeams.map((t) => [t.id, t]));
   const games: TeamSample[] = [];
+  const teamScores: number[] = [];
   const schedule = pairings();
 
   for (let i = 0; i < GAMES; i += 1) {
@@ -105,6 +106,7 @@ const runAudit = () => {
 
     games.push(teamSampleFromBox(result.home));
     games.push(teamSampleFromBox(result.away));
+    teamScores.push(result.home.score, result.away.score);
   }
 
   const sums = games.reduce(
@@ -139,6 +141,17 @@ const runAudit = () => {
 
   const n = games.length;
   const pct = (made: number, att: number): number => (att > 0 ? (made / att) * 100 : 0);
+  const scoreBandCounts = teamScores.reduce(
+    (acc, score) => {
+      if (score < 60) acc.under60 += 1;
+      else if (score < 70) acc.sixties += 1;
+      else if (score < 78) acc.seventiesLow += 1;
+      else if (score < 99) acc.commonRange += 1;
+      else acc.hundredPlus += 1;
+      return acc;
+    },
+    { under60: 0, sixties: 0, seventiesLow: 0, commonRange: 0, hundredPlus: 0 }
+  );
 
   const output = {
     gamesSimulated: GAMES,
@@ -171,6 +184,11 @@ const runAudit = () => {
       topPlayerMinutes: sums.topPlayerMinutes / n,
       starterMinutes: sums.starterMinutes / n,
       benchMinutes: sums.benchMinutes / n
+    },
+    scoringDistribution: {
+      ...scoreBandCounts,
+      pctUnder70: (scoreBandCounts.under60 + scoreBandCounts.sixties) / n,
+      pct100Plus: scoreBandCounts.hundredPlus / n
     }
   };
 

@@ -37,7 +37,7 @@ function App() {
     nextShowOverall: boolean
   ): void => {
     saveSeasonState({
-      version: 1,
+      version: 2,
       scheduleSeed: nextSeed,
       schedule: nextSchedule,
       teams: nextTeams,

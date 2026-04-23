@@ -78,7 +78,7 @@ export type LeagueRules = {
     overtimeLength: 5;
     numPlayersOnCourt: 5;
     foulsNeededToFoulOut: 5;
-    foulsUntilBonus: [5, 5, 5];
+    foulsUntilBonus: [5, 5, 5, 5];
     threePointers: true;
     homeCourtAdvantage: number;
     neutralSite: 'finals';
