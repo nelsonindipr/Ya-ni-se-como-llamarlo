@@ -168,7 +168,8 @@ const playGameInSeries = (series: PlayoffSeries, teams: Team[], players: Player[
         resultId: result.id,
         homeScore: result.home.score,
         awayScore: result.away.score,
-        winnerTeamId: result.winnerTeamId
+        winnerTeamId: result.winnerTeamId,
+        result
       }
     ],
     winnerTeamId: winnerWins >= needed ? result.winnerTeamId : series.winnerTeamId

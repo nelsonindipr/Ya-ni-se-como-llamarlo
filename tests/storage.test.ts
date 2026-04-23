@@ -4,6 +4,7 @@ import { initialTeams } from '../src/data/teams';
 import type { ScheduledGame, Team } from '../src/domain/types';
 import { simulateGame } from '../src/simulation/engine';
 import { generateRegularSeasonSchedule } from '../src/simulation/schedule';
+import { createEmptySeasonStats } from '../src/simulation/stats';
 import { clearSeasonState, loadSeasonState, saveSeasonState } from '../src/utils/storage';
 
 const resetTeams = (): Team[] =>
@@ -57,14 +58,16 @@ describe('season storage utility', () => {
     );
 
     saveSeasonState({
-      version: 3,
+      version: 4,
       scheduleSeed: 2026,
       schedule: playedSchedule,
       teams: resetTeams(),
       game: null,
       selectedScheduledGameId: null,
       showOverall: true,
-      playoffBracket: null
+      playoffBracket: null,
+      stats: createEmptySeasonStats(initialPlayers, initialTeams),
+      selectedPlayerId: null
     });
 
     const loaded = loadSeasonState();
@@ -83,14 +86,16 @@ describe('season storage utility', () => {
     teams[0].pointsAgainst = 1100;
 
     saveSeasonState({
-      version: 3,
+      version: 4,
       scheduleSeed: 7,
       schedule: generateRegularSeasonSchedule(initialTeams, 7),
       teams,
       game: null,
       selectedScheduledGameId: null,
       showOverall: false,
-      playoffBracket: null
+      playoffBracket: null,
+      stats: createEmptySeasonStats(initialPlayers, initialTeams),
+      selectedPlayerId: null
     });
 
     const loaded = loadSeasonState();
@@ -102,14 +107,16 @@ describe('season storage utility', () => {
 
   it('reset clears stored season state', () => {
     saveSeasonState({
-      version: 3,
+      version: 4,
       scheduleSeed: 8,
       schedule: generateRegularSeasonSchedule(initialTeams, 8),
       teams: resetTeams(),
       game: null,
       selectedScheduledGameId: null,
       showOverall: false,
-      playoffBracket: null
+      playoffBracket: null,
+      stats: createEmptySeasonStats(initialPlayers, initialTeams),
+      selectedPlayerId: null
     });
 
     clearSeasonState();
@@ -118,7 +125,7 @@ describe('season storage utility', () => {
   });
 
   it('invalid saved state does not crash and fails safely', () => {
-    localStorage.setItem('bsn-manager-season-v3', JSON.stringify({ version: 3, schedule: [] }));
+    localStorage.setItem('bsn-manager-season-v4', JSON.stringify({ version: 4, schedule: [] }));
 
     expect(loadSeasonState()).toBeNull();
   });

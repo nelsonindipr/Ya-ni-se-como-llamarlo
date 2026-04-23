@@ -1,17 +1,20 @@
 import { initialTeams } from '../data/teams';
 import type { GameResult, PlayoffBracket, ScheduledGame, Team } from '../domain/types';
+import type { SeasonStatsState } from '../simulation/stats';
 
-export const STORAGE_KEY = 'bsn-manager-season-v3';
+export const STORAGE_KEY = 'bsn-manager-season-v4';
 
 type PersistedSeasonState = {
-  version: 3;
+  version: 4;
   scheduleSeed: number;
   schedule: ScheduledGame[];
   teams: Team[];
   game: GameResult | null;
   selectedScheduledGameId?: string | null;
+  selectedPlayerId?: string | null;
   showOverall: boolean;
   playoffBracket: PlayoffBracket | null;
+  stats: SeasonStatsState;
 };
 
 const knownTeamIds = new Set(initialTeams.map((t) => t.id));
@@ -59,19 +62,33 @@ const isValidTeam = (team: unknown): team is Team => {
   );
 };
 
+const isValidStats = (stats: unknown): stats is SeasonStatsState => {
+  if (!stats || typeof stats !== 'object') return false;
+  const s = stats as SeasonStatsState;
+  return (
+    typeof s.regularPlayerStats === 'object' &&
+    typeof s.playoffPlayerStats === 'object' &&
+    typeof s.regularTeamStats === 'object' &&
+    typeof s.playoffTeamStats === 'object' &&
+    typeof s.playerGameLogs === 'object' &&
+    Array.isArray(s.processedRegularGameIds) &&
+    Array.isArray(s.processedPlayoffGameIds)
+  );
+};
+
 export const isValidPersistedSeasonState = (value: unknown): value is PersistedSeasonState => {
   if (!value || typeof value !== 'object') return false;
   const state = value as PersistedSeasonState;
 
-  if (state.version !== 3) return false;
+  if (state.version !== 4) return false;
   if (!isFiniteNumber(state.scheduleSeed)) return false;
   if (!Array.isArray(state.schedule) || state.schedule.length !== 204) return false;
   if (!Array.isArray(state.teams) || state.teams.length !== initialTeams.length) return false;
   if (typeof state.showOverall !== 'boolean') return false;
-  if (state.selectedScheduledGameId !== undefined && state.selectedScheduledGameId !== null && typeof state.selectedScheduledGameId !== 'string') {
-    return false;
-  }
+  if (state.selectedScheduledGameId !== undefined && state.selectedScheduledGameId !== null && typeof state.selectedScheduledGameId !== 'string') return false;
+  if (state.selectedPlayerId !== undefined && state.selectedPlayerId !== null && typeof state.selectedPlayerId !== 'string') return false;
   if (state.playoffBracket !== null && (typeof state.playoffBracket !== 'object' || !('generated' in state.playoffBracket))) return false;
+  if (!isValidStats(state.stats)) return false;
 
   if (!state.schedule.every(isValidScheduledGame)) return false;
   if (!state.teams.every(isValidTeam)) return false;
