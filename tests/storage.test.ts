@@ -7,7 +7,31 @@ import { clearSeasonState, loadSeasonState, saveSeasonState } from '../src/utils
 const resetTeams = (): Team[] =>
   initialTeams.map((team) => ({ ...team, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 }));
 
+const createLocalStorageMock = (): Storage => {
+  const store = new Map<string, string>();
+  return {
+    get length() {
+      return store.size;
+    },
+    clear: () => store.clear(),
+    getItem: (key: string) => store.get(key) ?? null,
+    key: (index: number) => [...store.keys()][index] ?? null,
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+    setItem: (key: string, value: string) => {
+      store.set(key, value);
+    }
+  };
+};
+
 beforeEach(() => {
+  if (typeof localStorage === 'undefined') {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: createLocalStorageMock(),
+      configurable: true
+    });
+  }
   localStorage.clear();
 });
 
@@ -19,7 +43,7 @@ describe('season storage utility', () => {
     );
 
     saveSeasonState({
-      version: 1,
+      version: 2,
       scheduleSeed: 2026,
       schedule: playedSchedule,
       teams: resetTeams(),
@@ -42,7 +66,7 @@ describe('season storage utility', () => {
     teams[0].pointsAgainst = 1100;
 
     saveSeasonState({
-      version: 1,
+      version: 2,
       scheduleSeed: 7,
       schedule: generateRegularSeasonSchedule(initialTeams, 7),
       teams,
@@ -59,7 +83,7 @@ describe('season storage utility', () => {
 
   it('reset clears stored season state', () => {
     saveSeasonState({
-      version: 1,
+      version: 2,
       scheduleSeed: 8,
       schedule: generateRegularSeasonSchedule(initialTeams, 8),
       teams: resetTeams(),
@@ -73,7 +97,7 @@ describe('season storage utility', () => {
   });
 
   it('invalid saved state does not crash and fails safely', () => {
-    localStorage.setItem('bsn-manager-season-v1', JSON.stringify({ version: 1, schedule: [] }));
+    localStorage.setItem('bsn-manager-season-v2', JSON.stringify({ version: 2, schedule: [] }));
 
     expect(loadSeasonState()).toBeNull();
   });

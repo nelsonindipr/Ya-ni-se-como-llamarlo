@@ -9,7 +9,7 @@ export const leagueRules: LeagueRules = {
     overtimeLength: 5,
     numPlayersOnCourt: 5,
     foulsNeededToFoulOut: 5,
-    foulsUntilBonus: [5, 5, 5],
+    foulsUntilBonus: [5, 5, 5, 5],
     threePointers: true,
     homeCourtAdvantage: 1.1,
     neutralSite: 'finals'
@@ -19,14 +19,14 @@ export const leagueRules: LeagueRules = {
     paceIsPer48: true,
     threePointTendencyFactor: 1.5,
     threePointAccuracyFactor: 0.89,
-    twoPointAccuracyFactor: 1,
+    twoPointAccuracyFactor: 1.01,
     ftAccuracyFactor: 0.9,
     blockFactor: 7,
     stealFactor: 1.2,
-    turnoverFactor: 1.18,
+    turnoverFactor: 1.08,
     orbFactor: 1.6,
     foulRateFactor: 2.1,
-    assistFactor: 1.1
+    assistFactor: 1.14
   },
   playoffs: {
     playIn: false,
