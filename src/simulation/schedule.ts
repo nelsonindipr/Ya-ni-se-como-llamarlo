@@ -12,6 +12,20 @@ type ScheduleValidation = {
   errors: string[];
 };
 
+type PairCount = {
+  meetings: number;
+  homeByTeam: Map<string, number>;
+};
+
+export const rivalryPairs: Array<readonly [string, string]> = [
+  ['bay', 'man'],
+  ['cag', 'gua'],
+  ['san', 'car'],
+  ['are', 'que'],
+  ['may', 'sgm'],
+  ['pon', 'agu']
+] as const;
+
 const pairKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 const shuffle = <T>(items: T[], rng: RandomSource): T[] => {
@@ -23,90 +37,101 @@ const shuffle = <T>(items: T[], rng: RandomSource): T[] => {
   return arr;
 };
 
-const buildPairRequirements = (teams: Team[], rng: RandomSource): PairRequirement[] => {
-  const confA = teams.filter((t) => t.conference === 'A');
-  const confB = teams.filter((t) => t.conference === 'B');
-  const requirements: PairRequirement[] = [];
+const buildPairRequirements = (teams: Team[]): PairRequirement[] => {
+  const requirements = new Map<string, PairRequirement>();
 
-  for (let i = 0; i < confA.length; i += 1) {
-    for (let j = i + 1; j < confA.length; j += 1) {
-      requirements.push({ a: confA[i].id, b: confA[j].id, meetings: 4 });
+  for (let i = 0; i < teams.length; i += 1) {
+    for (let j = i + 1; j < teams.length; j += 1) {
+      const a = teams[i];
+      const b = teams[j];
+      const meetings = a.conference === b.conference ? 4 : 2;
+      requirements.set(pairKey(a.id, b.id), { a: a.id, b: b.id, meetings });
     }
   }
 
-  for (let i = 0; i < confB.length; i += 1) {
-    for (let j = i + 1; j < confB.length; j += 1) {
-      requirements.push({ a: confB[i].id, b: confB[j].id, meetings: 4 });
+  for (const [x, y] of rivalryPairs) {
+    const key = pairKey(x, y);
+    const current = requirements.get(key);
+    if (!current) {
+      throw new Error(`Rivalry pair ${x}/${y} not found in teams list.`);
     }
+    current.meetings += 2;
   }
 
-  for (const a of confA) {
-    for (const b of confB) {
-      requirements.push({ a: a.id, b: b.id, meetings: 2 });
-    }
-  }
-
-  const aShuffled = shuffle(confA, rng);
-  const bShuffled = shuffle(confB, rng);
-  for (let i = 0; i < aShuffled.length; i += 1) {
-    const first = bShuffled[i % bShuffled.length];
-    const second = bShuffled[(i + 2) % bShuffled.length];
-    const candidates = [first.id, second.id];
-    for (const bId of candidates) {
-      const existing = requirements.find((r) => pairKey(r.a, r.b) === pairKey(aShuffled[i].id, bId));
-      if (existing) existing.meetings += 1;
-    }
-  }
-
-  return requirements;
+  return [...requirements.values()];
 };
 
 const buildGamesFromRequirements = (requirements: PairRequirement[], rng: RandomSource): ScheduledGame[] => {
-  const homeCount = new Map<string, number>();
-  const awayCount = new Map<string, number>();
-
   const games: ScheduledGame[] = [];
 
   for (const req of shuffle(requirements, rng)) {
-    let aHome = Math.floor(req.meetings / 2);
-    let bHome = req.meetings - aHome;
+    const homeForA = req.meetings / 2;
+    const homeForB = req.meetings / 2;
 
-    if (req.meetings % 2 === 1 && rng() < 0.5) {
-      aHome = bHome;
-      bHome = req.meetings - aHome;
-    }
-
-    for (let i = 0; i < aHome; i += 1) {
+    for (let i = 0; i < homeForA; i += 1) {
       games.push({
-        id: `sched-${req.a}-${req.b}-h${i + 1}`,
+        id: '',
         gameNumber: 0,
         homeTeamId: req.a,
         awayTeamId: req.b,
         played: false
       });
-      homeCount.set(req.a, (homeCount.get(req.a) ?? 0) + 1);
-      awayCount.set(req.b, (awayCount.get(req.b) ?? 0) + 1);
     }
 
-    for (let i = 0; i < bHome; i += 1) {
+    for (let i = 0; i < homeForB; i += 1) {
       games.push({
-        id: `sched-${req.a}-${req.b}-a${i + 1}`,
+        id: '',
         gameNumber: 0,
         homeTeamId: req.b,
         awayTeamId: req.a,
         played: false
       });
-      homeCount.set(req.b, (homeCount.get(req.b) ?? 0) + 1);
-      awayCount.set(req.a, (awayCount.get(req.a) ?? 0) + 1);
     }
   }
 
-  return shuffle(games, rng).map((game, idx) => ({ ...game, gameNumber: idx + 1, id: `game-${idx + 1}-${game.homeTeamId}-${game.awayTeamId}` }));
+  const pool = shuffle(games, rng);
+  const ordered: ScheduledGame[] = [];
+
+  while (pool.length > 0) {
+    const previous = ordered.length > 0 ? ordered[ordered.length - 1] : undefined;
+    const previousPair = previous ? pairKey(previous.homeTeamId, previous.awayTeamId) : null;
+
+    const candidates = pool
+      .map((game, index) => ({ game, index }))
+      .filter(({ game }) => pairKey(game.homeTeamId, game.awayTeamId) !== previousPair);
+
+    const pickFrom = candidates.length > 0 ? candidates : pool.map((game, index) => ({ game, index }));
+    const picked = pickFrom[randomInt(0, pickFrom.length - 1, rng)];
+
+    ordered.push(picked.game);
+    pool.splice(picked.index, 1);
+  }
+
+  return ordered.map((game, idx) => ({
+    ...game,
+    gameNumber: idx + 1,
+    id: `game-${idx + 1}-${game.awayTeamId}-at-${game.homeTeamId}`
+  }));
+};
+
+const countPairMeetings = (schedule: ScheduledGame[]): Map<string, PairCount> => {
+  const counts = new Map<string, PairCount>();
+
+  for (const game of schedule) {
+    const key = pairKey(game.homeTeamId, game.awayTeamId);
+    const pair = counts.get(key) ?? { meetings: 0, homeByTeam: new Map<string, number>() };
+    pair.meetings += 1;
+    pair.homeByTeam.set(game.homeTeamId, (pair.homeByTeam.get(game.homeTeamId) ?? 0) + 1);
+    counts.set(key, pair);
+  }
+
+  return counts;
 };
 
 export const validateRegularSeasonSchedule = (schedule: ScheduledGame[], teams: Team[]): ScheduleValidation => {
   const errors: string[] = [];
   const teamIds = new Set(teams.map((t) => t.id));
+  const teamById = new Map(teams.map((t) => [t.id, t]));
 
   if (schedule.length !== 204) errors.push(`Expected 204 total games, got ${schedule.length}.`);
 
@@ -138,8 +163,48 @@ export const validateRegularSeasonSchedule = (schedule: ScheduledGame[], teams: 
 
   for (const [teamId, counts] of byTeam) {
     if (counts.total !== 34) errors.push(`Team ${teamId} has ${counts.total} games instead of 34.`);
-    if (Math.abs(counts.home - counts.away) > 3) {
+    if (Math.abs(counts.home - counts.away) > 2) {
       errors.push(`Team ${teamId} home/away imbalance too high (${counts.home}/${counts.away}).`);
+    }
+  }
+
+  const pairCounts = countPairMeetings(schedule);
+  const rivalryKeys = new Set(rivalryPairs.map(([a, b]) => pairKey(a, b)));
+
+  for (let i = 0; i < teams.length; i += 1) {
+    for (let j = i + 1; j < teams.length; j += 1) {
+      const a = teams[i];
+      const b = teams[j];
+      const key = pairKey(a.id, b.id);
+      const meetings = pairCounts.get(key)?.meetings ?? 0;
+
+      if (a.conference !== b.conference) {
+        if (meetings !== 2) errors.push(`Cross-conference pair ${key} has ${meetings} games instead of 2.`);
+      } else if (rivalryKeys.has(key)) {
+        if (meetings !== 6) errors.push(`Rivalry pair ${key} has ${meetings} games instead of 6.`);
+      } else if (meetings !== 4) {
+        errors.push(`Same-conference non-rival pair ${key} has ${meetings} games instead of 4.`);
+      }
+    }
+  }
+
+  for (const [key, pair] of pairCounts) {
+    if (pair.meetings % 2 !== 0) {
+      errors.push(`Pair ${key} has odd meetings (${pair.meetings}), cannot balance home/away.`);
+      continue;
+    }
+
+    const [a, b] = key.split('|');
+    const homeA = pair.homeByTeam.get(a) ?? 0;
+    const homeB = pair.homeByTeam.get(b) ?? 0;
+    if (Math.abs(homeA - homeB) > 1) {
+      errors.push(`Pair ${key} home split is not balanced (${homeA}/${homeB}).`);
+    }
+  }
+
+  for (const [a, b] of rivalryPairs) {
+    if (!teamById.has(a) || !teamById.has(b)) {
+      errors.push(`Rivalry configuration contains unknown team (${a}/${b}).`);
     }
   }
 
@@ -150,7 +215,7 @@ export const validateRegularSeasonSchedule = (schedule: ScheduledGame[], teams: 
 
 export const generateRegularSeasonSchedule = (teams: Team[], seed: number): ScheduledGame[] => {
   const rng = createSeededRandom(seed);
-  const requirements = buildPairRequirements(teams, rng);
+  const requirements = buildPairRequirements(teams);
   const schedule = buildGamesFromRequirements(requirements, rng);
 
   const validation = validateRegularSeasonSchedule(schedule, teams);
