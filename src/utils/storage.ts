@@ -1,15 +1,16 @@
 import { initialTeams } from '../data/teams';
-import type { GameResult, ScheduledGame, Team } from '../domain/types';
+import type { GameResult, PlayoffBracket, ScheduledGame, Team } from '../domain/types';
 
-export const STORAGE_KEY = 'bsn-manager-season-v2';
+export const STORAGE_KEY = 'bsn-manager-season-v3';
 
 type PersistedSeasonState = {
-  version: 2;
+  version: 3;
   scheduleSeed: number;
   schedule: ScheduledGame[];
   teams: Team[];
   game: GameResult | null;
   showOverall: boolean;
+  playoffBracket: PlayoffBracket | null;
 };
 
 const knownTeamIds = new Set(initialTeams.map((t) => t.id));
@@ -50,11 +51,12 @@ export const isValidPersistedSeasonState = (value: unknown): value is PersistedS
   if (!value || typeof value !== 'object') return false;
   const state = value as PersistedSeasonState;
 
-  if (state.version !== 2) return false;
+  if (state.version !== 3) return false;
   if (!isFiniteNumber(state.scheduleSeed)) return false;
   if (!Array.isArray(state.schedule) || state.schedule.length !== 204) return false;
   if (!Array.isArray(state.teams) || state.teams.length !== initialTeams.length) return false;
   if (typeof state.showOverall !== 'boolean') return false;
+  if (state.playoffBracket !== null && (typeof state.playoffBracket !== 'object' || !('generated' in state.playoffBracket))) return false;
 
   if (!state.schedule.every(isValidScheduledGame)) return false;
   if (!state.teams.every(isValidTeam)) return false;

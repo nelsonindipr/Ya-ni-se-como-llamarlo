@@ -5,8 +5,9 @@ import { StandingsTable } from './components/StandingsTable';
 import { initialPlayers } from './data/players';
 import { initialTeams } from './data/teams';
 import { leagueRules } from './domain/rules';
-import type { GameResult, ScheduledGame, Team } from './domain/types';
+import type { GameResult, PlayoffBracket, PlayoffSeries, ScheduledGame, Team } from './domain/types';
 import { simulateGame } from './simulation/engine';
+import { generatePlayoffBracket, simulateEntirePlayoffs, simulateNextPlayoffSeries } from './simulation/playoffs';
 import { generateRegularSeasonSchedule } from './simulation/schedule';
 import { applyGameToStandings, toStandingRows } from './simulation/standings';
 import { clearSeasonState, loadSeasonState, saveSeasonState } from './utils/storage';
@@ -24,6 +25,7 @@ function App() {
   const [schedule, setSchedule] = useState<ScheduledGame[]>(() =>
     generateRegularSeasonSchedule(initialTeams, initialSeed)
   );
+  const [playoffBracket, setPlayoffBracket] = useState<PlayoffBracket | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
 
   const standings = useMemo(() => toStandingRows(teams), [teams]);
@@ -34,15 +36,17 @@ function App() {
     nextSchedule: ScheduledGame[],
     nextTeams: Team[],
     nextGame: GameResult | null,
-    nextShowOverall: boolean
+    nextShowOverall: boolean,
+    nextPlayoffBracket: PlayoffBracket | null
   ): void => {
     saveSeasonState({
-      version: 2,
+      version: 3,
       scheduleSeed: nextSeed,
       schedule: nextSchedule,
       teams: nextTeams,
       game: nextGame,
-      showOverall: nextShowOverall
+      showOverall: nextShowOverall,
+      playoffBracket: nextPlayoffBracket
     });
   };
 
@@ -54,8 +58,16 @@ function App() {
     setTeams(loaded.teams);
     setGame(loaded.game);
     setShowOverall(loaded.showOverall);
+    setPlayoffBracket(loaded.playoffBracket);
     setStatusMessage('Loaded saved season from local storage.');
   }, []);
+
+  const maybeGeneratePlayoffs = (nextTeams: Team[], nextSchedule: ScheduledGame[]): PlayoffBracket | null => {
+    const regularSeasonComplete = nextSchedule.every((scheduled) => scheduled.played);
+    if (!regularSeasonComplete) return playoffBracket;
+    if (playoffBracket) return playoffBracket;
+    return generatePlayoffBracket(toStandingRows(nextTeams));
+  };
 
   const playScheduledGame = (scheduledGame: ScheduledGame): void => {
     if (scheduledGame.played) return;
@@ -76,11 +88,13 @@ function App() {
           }
         : g
     );
+    const nextPlayoffBracket = maybeGeneratePlayoffs(nextTeams, nextSchedule);
 
     setGame(result);
     setTeams(nextTeams);
     setSchedule(nextSchedule);
-    persistState(scheduleSeed, nextSchedule, nextTeams, result, showOverall);
+    setPlayoffBracket(nextPlayoffBracket);
+    persistState(scheduleSeed, nextSchedule, nextTeams, result, showOverall, nextPlayoffBracket);
     setStatusMessage(`Game #${scheduledGame.gameNumber} simulated and season auto-saved.`);
   };
 
@@ -92,8 +106,9 @@ function App() {
     setSchedule(nextSchedule);
     setTeams(nextTeams);
     setGame(null);
+    setPlayoffBracket(null);
 
-    persistState(seed, nextSchedule, nextTeams, null, showOverall);
+    persistState(seed, nextSchedule, nextTeams, null, showOverall, null);
     setStatusMessage(`Generated schedule with seed ${seed} and auto-saved season.`);
   };
 
@@ -132,17 +147,19 @@ function App() {
       if (!update) return g;
       return { ...g, played: true, ...update };
     });
+    const nextPlayoffBracket = maybeGeneratePlayoffs(currentTeams, nextSchedule);
 
     setTeams(currentTeams);
     setSchedule(nextSchedule);
+    setPlayoffBracket(nextPlayoffBracket);
     if (finalResult) setGame(finalResult);
 
-    persistState(scheduleSeed, nextSchedule, currentTeams, finalResult, showOverall);
+    persistState(scheduleSeed, nextSchedule, currentTeams, finalResult, showOverall, nextPlayoffBracket);
     setStatusMessage('Simulated all remaining games and auto-saved season.');
   };
 
   const saveSeason = (): void => {
-    persistState(scheduleSeed, schedule, teams, game, showOverall);
+    persistState(scheduleSeed, schedule, teams, game, showOverall, playoffBracket);
     setStatusMessage('Season saved to local storage.');
   };
 
@@ -158,6 +175,7 @@ function App() {
     setTeams(loaded.teams);
     setGame(loaded.game);
     setShowOverall(loaded.showOverall);
+    setPlayoffBracket(loaded.playoffBracket);
     setStatusMessage('Season loaded from local storage.');
   };
 
@@ -171,16 +189,52 @@ function App() {
     setTeams(nextTeams);
     setGame(null);
     setShowOverall(false);
+    setPlayoffBracket(null);
     setStatusMessage('Season reset and saved state cleared.');
   };
 
   const toggleOverall = (): void => {
     const nextShowOverall = !showOverall;
     setShowOverall(nextShowOverall);
-    persistState(scheduleSeed, schedule, teams, game, nextShowOverall);
+    persistState(scheduleSeed, schedule, teams, game, nextShowOverall, playoffBracket);
   };
 
   const remainingGames = schedule.filter((g) => !g.played).length;
+  const remainingPlayoffSeries = useMemo(() => {
+    if (!playoffBracket) return 0;
+    const all = [
+      playoffBracket.conferenceSemifinals.a1v4,
+      playoffBracket.conferenceSemifinals.a2v3,
+      playoffBracket.conferenceSemifinals.b1v4,
+      playoffBracket.conferenceSemifinals.b2v3,
+      playoffBracket.conferenceFinals.a,
+      playoffBracket.conferenceFinals.b,
+      playoffBracket.bsnFinal
+    ];
+    return all.filter((series) => (series.higherSeedTeamId && series.lowerSeedTeamId ? !series.winnerTeamId : false)).length;
+  }, [playoffBracket]);
+  const teamName = (id?: string): string => initialTeams.find((team) => team.id === id)?.name ?? 'TBD';
+  const seriesScore = (series: PlayoffSeries): string => {
+    const highWins = series.higherSeedTeamId ? series.winsByTeamId[series.higherSeedTeamId] ?? 0 : 0;
+    const lowWins = series.lowerSeedTeamId ? series.winsByTeamId[series.lowerSeedTeamId] ?? 0 : 0;
+    return `${highWins}-${lowWins}`;
+  };
+
+  const simulateNextPlayoffRoundSeries = (): void => {
+    if (!playoffBracket) return;
+    const next = simulateNextPlayoffSeries(playoffBracket, teams, initialPlayers, scheduleSeed);
+    setPlayoffBracket(next);
+    persistState(scheduleSeed, schedule, teams, game, showOverall, next);
+    setStatusMessage('Simulated next playoff series and auto-saved season.');
+  };
+
+  const simulateAllPlayoffs = (): void => {
+    if (!playoffBracket) return;
+    const next = simulateEntirePlayoffs(playoffBracket, teams, initialPlayers, scheduleSeed);
+    setPlayoffBracket(next);
+    persistState(scheduleSeed, schedule, teams, game, showOverall, next);
+    setStatusMessage('Simulated all remaining playoff series and auto-saved season.');
+  };
 
   return (
     <main>
@@ -251,6 +305,42 @@ function App() {
           </tbody>
         </table>
       </section>
+
+      {playoffBracket ? (
+        <section>
+          <h2>BSN 2026 Playoffs</h2>
+          <p>{playoffBracket.championTeamId ? `Champion: ${teamName(playoffBracket.championTeamId)}` : `Series remaining: ${remainingPlayoffSeries}`}</p>
+          <div className="selectors">
+            <button type="button" onClick={simulateNextPlayoffRoundSeries} disabled={remainingPlayoffSeries === 0}>
+              Simulate Next Playoff Series
+            </button>
+            <button type="button" onClick={simulateAllPlayoffs} disabled={remainingPlayoffSeries === 0}>
+              Simulate All Playoff Series
+            </button>
+          </div>
+          <div className="grid">
+            <section>
+              <h3>Conference A Semifinals</h3>
+              <p>({playoffBracket.conferenceSemifinals.a1v4.higherSeed}) {teamName(playoffBracket.conferenceSemifinals.a1v4.higherSeedTeamId)} vs ({playoffBracket.conferenceSemifinals.a1v4.lowerSeed}) {teamName(playoffBracket.conferenceSemifinals.a1v4.lowerSeedTeamId)} — {seriesScore(playoffBracket.conferenceSemifinals.a1v4)}</p>
+              <p>({playoffBracket.conferenceSemifinals.a2v3.higherSeed}) {teamName(playoffBracket.conferenceSemifinals.a2v3.higherSeedTeamId)} vs ({playoffBracket.conferenceSemifinals.a2v3.lowerSeed}) {teamName(playoffBracket.conferenceSemifinals.a2v3.lowerSeedTeamId)} — {seriesScore(playoffBracket.conferenceSemifinals.a2v3)}</p>
+              <h3>Conference A Final</h3>
+              <p>({playoffBracket.conferenceFinals.a.higherSeed}) {teamName(playoffBracket.conferenceFinals.a.higherSeedTeamId)} vs ({playoffBracket.conferenceFinals.a.lowerSeed}) {teamName(playoffBracket.conferenceFinals.a.lowerSeedTeamId)} — {seriesScore(playoffBracket.conferenceFinals.a)}</p>
+            </section>
+            <section>
+              <h3>Conference B Semifinals</h3>
+              <p>({playoffBracket.conferenceSemifinals.b1v4.higherSeed}) {teamName(playoffBracket.conferenceSemifinals.b1v4.higherSeedTeamId)} vs ({playoffBracket.conferenceSemifinals.b1v4.lowerSeed}) {teamName(playoffBracket.conferenceSemifinals.b1v4.lowerSeedTeamId)} — {seriesScore(playoffBracket.conferenceSemifinals.b1v4)}</p>
+              <p>({playoffBracket.conferenceSemifinals.b2v3.higherSeed}) {teamName(playoffBracket.conferenceSemifinals.b2v3.higherSeedTeamId)} vs ({playoffBracket.conferenceSemifinals.b2v3.lowerSeed}) {teamName(playoffBracket.conferenceSemifinals.b2v3.lowerSeedTeamId)} — {seriesScore(playoffBracket.conferenceSemifinals.b2v3)}</p>
+              <h3>Conference B Final</h3>
+              <p>({playoffBracket.conferenceFinals.b.higherSeed}) {teamName(playoffBracket.conferenceFinals.b.higherSeedTeamId)} vs ({playoffBracket.conferenceFinals.b.lowerSeed}) {teamName(playoffBracket.conferenceFinals.b.lowerSeedTeamId)} — {seriesScore(playoffBracket.conferenceFinals.b)}</p>
+            </section>
+          </div>
+          <section>
+            <h3>BSN Final</h3>
+            <p>({playoffBracket.bsnFinal.higherSeed}) {teamName(playoffBracket.bsnFinal.higherSeedTeamId)} vs ({playoffBracket.bsnFinal.lowerSeed}) {teamName(playoffBracket.bsnFinal.lowerSeedTeamId)} — {seriesScore(playoffBracket.bsnFinal)}</p>
+            <p>Format: Best-of-7. No play-in. No reseeding.</p>
+          </section>
+        </section>
+      ) : null}
 
       {game ? (
         <section>

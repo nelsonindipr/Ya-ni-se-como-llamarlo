@@ -172,3 +172,46 @@ export type StandingRow = Team & {
   winPct: number;
   pointDiff: number;
 };
+
+export type PlayoffRound = 'conference_semifinals' | 'conference_finals' | 'bsn_final';
+
+export type PlayoffSeriesGame = {
+  gameNumber: number;
+  homeTeamId: string;
+  awayTeamId: string;
+  seed: number;
+  resultId: string;
+  homeScore: number;
+  awayScore: number;
+  winnerTeamId: string;
+};
+
+export type PlayoffSeries = {
+  id: string;
+  round: PlayoffRound;
+  conference?: Conference;
+  bestOf: number;
+  higherSeed: number;
+  lowerSeed: number;
+  higherSeedTeamId?: string;
+  lowerSeedTeamId?: string;
+  winsByTeamId: Record<string, number>;
+  games: PlayoffSeriesGame[];
+  winnerTeamId?: string;
+};
+
+export type PlayoffBracket = {
+  generated: boolean;
+  conferenceSemifinals: {
+    a1v4: PlayoffSeries;
+    a2v3: PlayoffSeries;
+    b1v4: PlayoffSeries;
+    b2v3: PlayoffSeries;
+  };
+  conferenceFinals: {
+    a: PlayoffSeries;
+    b: PlayoffSeries;
+  };
+  bsnFinal: PlayoffSeries;
+  championTeamId?: string;
+};
