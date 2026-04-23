@@ -8,23 +8,6 @@ const resetTeams = (): Team[] =>
   initialTeams.map((team) => ({ ...team, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 }));
 
 beforeEach(() => {
-  const store = new Map<string, string>();
-  const localStorageMock = {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      store.set(key, value);
-    },
-    removeItem: (key: string) => {
-      store.delete(key);
-    },
-    clear: () => {
-      store.clear();
-    }
-  };
-  Object.defineProperty(globalThis, 'localStorage', {
-    value: localStorageMock,
-    configurable: true
-  });
   localStorage.clear();
 });
 
