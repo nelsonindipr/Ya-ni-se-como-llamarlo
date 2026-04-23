@@ -185,6 +185,7 @@ export type PlayoffSeriesGame = {
   homeScore: number;
   awayScore: number;
   winnerTeamId: string;
+  result?: GameResult;
 };
 
 export type PlayoffSeries = {
