@@ -3,6 +3,8 @@ export type Conference = 'A' | 'B';
 export type PlayerType = 'native' | 'import' | 'reserved_rights';
 export type ContractStatus = 'active' | 'expiring' | 'unsigned';
 export type RosterStatus = 'active' | 'reserve' | 'injured_list';
+export type Position = 'PG' | 'SG' | 'SF' | 'PF' | 'C';
+export type ShootingHand = 'left' | 'right' | 'switch';
 export type PlayerRole =
   | 'primary_ball_handler'
   | 'secondary_creator'
@@ -14,14 +16,45 @@ export type PlayerRole =
   | 'bench_spark';
 
 export type PlayerTendencies = {
-  shot3Rate: number;
-  driveRate: number;
-  postUpRate: number;
-  passRate: number;
-  foulDrawRate: number;
+  threePointTendency: number;
+  midRangeTendency: number;
+  driveTendency: number;
+  postUpTendency: number;
+  passTendency: number;
+  drawFoulTendency: number;
+  crashOffGlassTendency: number;
 };
 
 export type PlayerRatings = {
+  closeShot: number;
+  drivingLayup: number;
+  drivingDunk: number;
+  standingDunk: number;
+  postControl: number;
+  midRange: number;
+  threePoint: number;
+  freeThrow: number;
+  shotCreation: number;
+  offBallMovement: number;
+  passAccuracy: number;
+  ballHandle: number;
+  speedWithBall: number;
+  interiorDefense: number;
+  perimeterDefense: number;
+  steal: number;
+  block: number;
+  offensiveRebound: number;
+  defensiveRebound: number;
+  speed: number;
+  acceleration: number;
+  strength: number;
+  vertical: number;
+  stamina: number;
+  offensiveIQ: number;
+  defensiveIQ: number;
+};
+
+export type SimplifiedPlayerRatings = {
   insideScoring: number;
   midRangeScoring: number;
   threePointScoring: number;
@@ -51,8 +84,22 @@ export type Player = {
   id: string;
   teamId: string;
   name: string;
-  position: 'PG' | 'SG' | 'SF' | 'PF' | 'C';
+  firstName: string;
+  lastName: string;
+  displayName: string;
+  birthdate: string;
   age: number;
+  nationality: string;
+  hometown: string;
+  height: number;
+  weight: number;
+  position: Position;
+  secondaryPositions: Position[];
+  shootingHand: ShootingHand;
+  jerseyNumber: number;
+  college: string;
+  previousTeam: string;
+  yearsPro: number;
   role: PlayerRole;
   tendencies: PlayerTendencies;
   ratings: PlayerRatings;
