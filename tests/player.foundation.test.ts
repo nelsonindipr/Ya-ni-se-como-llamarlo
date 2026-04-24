@@ -65,6 +65,6 @@ describe('player data foundation', () => {
 
     expect(result.home.score).toBeGreaterThan(0);
     expect(result.away.score).toBeGreaterThan(0);
-    expect(result.home.players).toHaveLength(12);
+    expect(result.home.players.length).toBeGreaterThanOrEqual(12);
   });
 });

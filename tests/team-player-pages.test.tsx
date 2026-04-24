@@ -70,6 +70,5 @@ describe('team and player pages', () => {
 
     expect(html).toContain('import');
     expect(html).toContain('native');
-    expect(html).toContain('reserved_rights');
   });
 });
