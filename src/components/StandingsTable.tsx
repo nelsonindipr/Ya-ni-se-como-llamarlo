@@ -4,9 +4,10 @@ type Props = {
   title: string;
   rows: StandingRow[];
   conference?: Conference;
+  onTeamClick?: (teamId: string) => void;
 };
 
-export const StandingsTable = ({ title, rows, conference }: Props) => {
+export const StandingsTable = ({ title, rows, conference, onTeamClick }: Props) => {
   const filtered = conference ? rows.filter((r) => r.conference === conference) : rows;
 
   return (
@@ -27,7 +28,13 @@ export const StandingsTable = ({ title, rows, conference }: Props) => {
         <tbody>
           {filtered.map((row) => (
             <tr key={row.id}>
-              <td>{row.name}</td>
+              <td>
+                {onTeamClick ? (
+                  <button type="button" onClick={() => onTeamClick(row.id)}>{row.name}</button>
+                ) : (
+                  row.name
+                )}
+              </td>
               <td>{row.wins}</td>
               <td>{row.losses}</td>
               <td>{row.winPct.toFixed(3)}</td>
