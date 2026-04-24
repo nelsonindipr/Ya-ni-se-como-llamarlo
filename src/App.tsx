@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import './styles.css';
 import { BoxScoreTable } from './components/BoxScoreTable';
+import { PlayerProfile } from './components/PlayerProfile';
 import { StandingsTable } from './components/StandingsTable';
+import { TeamPage } from './components/TeamPage';
 import { initialPlayers } from './data/players';
 import { initialTeams } from './data/teams';
 import { leagueRules } from './domain/rules';
@@ -32,6 +34,7 @@ function App() {
   const [playoffBracket, setPlayoffBracket] = useState<PlayoffBracket | null>(null);
   const [stats, setStats] = useState<SeasonStatsState>(() => createEmptySeasonStats(initialPlayers, initialTeams));
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState('');
 
   const standings = useMemo(() => toStandingRows(teams), [teams]);
@@ -257,6 +260,15 @@ function App() {
     return all.filter((series) => (series.higherSeedTeamId && series.lowerSeedTeamId ? !series.winnerTeamId : false)).length;
   }, [playoffBracket]);
   const teamName = (id?: string): string => initialTeams.find((team) => team.id === id)?.name ?? 'TBD';
+  const openTeamPage = (teamId: string): void => {
+    setSelectedTeamId(teamId);
+    setSelectedPlayerId(null);
+  };
+  const openPlayerProfile = (playerId: string): void => setSelectedPlayerId(playerId);
+  const closeDetails = (): void => {
+    setSelectedPlayerId(null);
+    setSelectedTeamId(null);
+  };
   const collectPlayoffResults = (next: PlayoffBracket, current: SeasonStatsState): SeasonStatsState => {
     let staged = current;
     const list = [
@@ -298,6 +310,8 @@ function App() {
 
   const selectedScheduledResult = selectedScheduledGameId === null ? null : schedule.find((scheduled) => scheduled.id === selectedScheduledGameId)?.result ?? null;
   const displayedGame = selectedScheduledResult ?? game;
+  const selectedTeam = selectedTeamId ? teams.find((team) => team.id === selectedTeamId) ?? null : null;
+  const selectedPlayer = selectedPlayerId ? initialPlayers.find((player) => player.id === selectedPlayerId) ?? null : null;
 
   const leaderRows = useMemo(() => {
     return initialPlayers
@@ -336,6 +350,42 @@ function App() {
     setSelectedScheduledGameId(scheduledGame.id);
     persistState(scheduleSeed, schedule, teams, game, scheduledGame.id, showOverall, playoffBracket, stats);
   };
+
+  if (selectedPlayer) {
+    const team = initialTeams.find((item) => item.id === selectedPlayer.teamId);
+    return (
+      <main>
+        <h1>BSN 2026 Manager — v0.1 MVP</h1>
+        <PlayerProfile
+          player={selectedPlayer}
+          teamName={team?.name ?? selectedPlayer.teamId}
+          regularStats={stats.regularPlayerStats[selectedPlayer.id]}
+          playoffStats={stats.playoffPlayerStats[selectedPlayer.id]}
+          gameLogs={stats.playerGameLogs[selectedPlayer.id] ?? []}
+          teamNameById={teamNameById}
+          onBack={() => setSelectedPlayerId(null)}
+        />
+      </main>
+    );
+  }
+
+  if (selectedTeam) {
+    return (
+      <main>
+        <h1>BSN 2026 Manager — v0.1 MVP</h1>
+        <TeamPage
+          team={selectedTeam}
+          roster={initialPlayers.filter((player) => player.teamId === selectedTeam.id)}
+          regularStats={stats.regularTeamStats[selectedTeam.id]}
+          playoffStats={stats.playoffTeamStats[selectedTeam.id]}
+          schedule={schedule.filter((gameInSchedule) => gameInSchedule.homeTeamId === selectedTeam.id || gameInSchedule.awayTeamId === selectedTeam.id)}
+          teamNameById={teamNameById}
+          onPlayerClick={openPlayerProfile}
+          onBack={closeDetails}
+        />
+      </main>
+    );
+  }
 
   return (
     <main>
@@ -417,8 +467,8 @@ function App() {
       <section>
         <h2>Standings</h2>
         <button onClick={toggleOverall} type="button">{showOverall ? 'Hide Overall Standings' : 'Show Overall Standings'}</button>
-        <div className="grid"><StandingsTable title="Conference A" rows={standings} conference="A" /><StandingsTable title="Conference B" rows={standings} conference="B" /></div>
-        {showOverall ? <StandingsTable title="Overall" rows={standings} /> : null}
+        <div className="grid"><StandingsTable title="Conference A" rows={standings} conference="A" onTeamClick={openTeamPage} /><StandingsTable title="Conference B" rows={standings} conference="B" onTeamClick={openTeamPage} /></div>
+        {showOverall ? <StandingsTable title="Overall" rows={standings} onTeamClick={openTeamPage} /> : null}
       </section>
     </main>
   );
