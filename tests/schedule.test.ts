@@ -77,6 +77,21 @@ describe('regular season schedule generation', () => {
   });
 });
 
+
+  it('does not schedule a team twice on the same date', () => {
+    const schedule = generateRegularSeasonSchedule(initialTeams, 2026);
+    const teamDate = new Set<string>();
+
+    for (const game of schedule) {
+      const homeKey = `${game.homeTeamId}|${game.date}`;
+      const awayKey = `${game.awayTeamId}|${game.date}`;
+      expect(teamDate.has(homeKey)).toBe(false);
+      expect(teamDate.has(awayKey)).toBe(false);
+      teamDate.add(homeKey);
+      teamDate.add(awayKey);
+      expect(game.phase).toBe('regular_season');
+    }
+  });
 describe('scheduled game simulation behavior', () => {
   it('simulating a scheduled game marks it as played', () => {
     const schedule = generateRegularSeasonSchedule(initialTeams, 11);
