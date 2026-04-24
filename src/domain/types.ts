@@ -92,6 +92,7 @@ export type Player = {
   nationality: string;
   hometown: string;
   height: number;
+  heightCm?: number;
   weight: number;
   position: Position;
   secondaryPositions: Position[];
@@ -114,6 +115,9 @@ export type Player = {
   importChangeCount: number;
   injurySalaryReliefEligible: boolean;
   technicalFoulCount: number;
+  originalPositionText?: string;
+  sourceNote?: string;
+  notes?: string[];
 };
 
 export type LeagueRules = {

@@ -76,7 +76,7 @@ export const validatePlayers = (players: Player[], teams: Team[], maxImportsPerT
     const result = validatePlayer(player, validTeamIds);
     errors.push(...result.errors);
 
-    if (player.isImport || player.playerType === 'import') {
+    if ((player.isImport || player.playerType === 'import') && player.rosterStatus !== 'reserve') {
       importsByTeam[player.teamId] = (importsByTeam[player.teamId] ?? 0) + 1;
     }
   }
