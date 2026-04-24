@@ -6,6 +6,7 @@ import { initialPlayers } from '../src/data/players';
 import { initialTeams } from '../src/data/teams';
 import { createEmptySeasonStats } from '../src/simulation/stats';
 import { generateRegularSeasonSchedule } from '../src/simulation/schedule';
+import { createNewGameState } from '../src/state/gameState';
 
 const team = initialTeams[0];
 const roster = initialPlayers.filter((player) => player.teamId === team.id);
@@ -14,6 +15,7 @@ const schedule = generateRegularSeasonSchedule(initialTeams, 2026).filter(
   (game) => game.homeTeamId === team.id || game.awayTeamId === team.id
 );
 const teamNameById = new Map(initialTeams.map((entry) => [entry.id, entry.name]));
+const state = createNewGameState(2026);
 
 describe('team and player pages', () => {
   it('team page renders roster', () => {
@@ -21,17 +23,23 @@ describe('team and player pages', () => {
       <TeamPage
         team={team}
         roster={roster}
+        runtimePlayers={state.runtimePlayers}
         regularStats={stats.regularTeamStats[team.id]}
         playoffStats={stats.playoffTeamStats[team.id]}
         schedule={schedule}
         teamNameById={teamNameById}
+        validationErrors={[]}
         onPlayerClick={() => {}}
+        onStarterToggle={() => {}}
+        onAvailabilityChange={() => {}}
+        onMinutesChange={() => {}}
+        onAutoRotation={() => {}}
         onBack={() => {}}
       />
     );
 
-    expect(html).toContain('Roster');
-    expect(html).toContain('Secondary');
+    expect(html).toContain('GM Roster Management');
+    expect(html).toContain('Target Min');
     expect(html).toContain(roster[0].name);
   });
 
@@ -59,11 +67,17 @@ describe('team and player pages', () => {
       <TeamPage
         team={team}
         roster={roster}
+        runtimePlayers={state.runtimePlayers}
         regularStats={stats.regularTeamStats[team.id]}
         playoffStats={stats.playoffTeamStats[team.id]}
         schedule={schedule}
         teamNameById={teamNameById}
+        validationErrors={[]}
         onPlayerClick={() => {}}
+        onStarterToggle={() => {}}
+        onAvailabilityChange={() => {}}
+        onMinutesChange={() => {}}
+        onAutoRotation={() => {}}
         onBack={() => {}}
       />
     );

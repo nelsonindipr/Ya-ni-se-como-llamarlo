@@ -1,4 +1,4 @@
-import type { GameResult, Player, PlayerBoxScore, SimplifiedPlayerRatings, Team } from '../domain/types';
+import type { AvailabilityStatus, GameResult, Player, PlayerBoxScore, ScheduledGame, SimplifiedPlayerRatings, Team } from '../domain/types';
 import { legacyTendenciesFromPlayer, simplifiedRatingsFromDetailed } from '../domain/playerRatings';
 import { leagueRules } from '../domain/rules';
 import { createSeededRandom, randomInt, type RandomSource } from './random';
@@ -11,13 +11,32 @@ type TeamContext = {
   pace: number;
 };
 
+type RuntimePlayerSource = {
+  fatigue: number;
+  injury: { gamesRemaining: number } | null;
+  availability?: AvailabilityStatus;
+  starter?: boolean;
+  rotationOrder?: number;
+  minutesOverride?: number | null;
+};
+
+type SimulationOptions = {
+  runtimePlayers?: Record<string, RuntimePlayerSource>;
+  schedule?: ScheduledGame[];
+  gameDate?: string;
+  gameNumber?: number;
+};
+
 type PlayerState = {
   player: Player;
   simpleRatings: SimplifiedPlayerRatings;
   tendencies: ReturnType<typeof legacyTendenciesFromPlayer>;
   rotationSlot: number;
+  targetMinutes: number;
   overall: number;
   fatigue: number; // 0..1
+  availability: AvailabilityStatus;
+  canPlay: boolean;
   fouls: number;
   secondsPlayed: number;
   stintSeconds: number;
@@ -94,6 +113,20 @@ const normalizePossessions = (homePace: number, awayPace: number, rng: RandomSou
   return Math.max(perTeamPaceTarget - 6, Math.min(perTeamPaceTarget + 6, base + randomInt(-2, 2, rng)));
 };
 
+const previousPlayedDate = (schedule: ScheduledGame[] | undefined, teamId: string, gameNumber: number | undefined): string | null => {
+  if (!schedule || gameNumber === undefined) return null;
+  const prev = schedule
+    .filter((g) => g.played && g.gameNumber < gameNumber && (g.homeTeamId === teamId || g.awayTeamId === teamId))
+    .sort((a, b) => b.gameNumber - a.gameNumber)[0];
+  return prev?.date ?? null;
+};
+
+const daysBetween = (aISO: string, bISO: string): number => {
+  const a = Date.parse(`${aISO}T00:00:00.000Z`);
+  const b = Date.parse(`${bISO}T00:00:00.000Z`);
+  return Math.floor((b - a) / (24 * 60 * 60 * 1000));
+};
+
 const initBox = (players: Player[]): PlayerBoxScore[] =>
   players.map((p) => ({
     playerId: p.id,
@@ -143,15 +176,17 @@ const targetMinutesForGameState = (
   scoreMargin: number
 ): number => {
   const base =
-    ps.rotationSlot === 0
-      ? 32
-      : ps.rotationSlot <= 4
-        ? 27
-        : ps.rotationSlot === 5
-          ? 22
-          : ps.rotationSlot <= 8
-            ? 14
-            : 6;
+    ps.targetMinutes > 0
+      ? ps.targetMinutes
+      : ps.rotationSlot === 0
+        ? 32
+        : ps.rotationSlot <= 4
+          ? 27
+          : ps.rotationSlot === 5
+            ? 22
+            : ps.rotationSlot <= 8
+              ? 14
+              : 6;
 
   const band = roleBand(ps);
   let target = base;
@@ -173,7 +208,7 @@ const targetMinutesForGameState = (
   const fatiguePenalty = Math.max(0, ps.fatigue - 0.6) * 10;
   target -= fatiguePenalty;
 
-  return Math.max(0, Math.min(37, target));
+  return Math.max(0, Math.min(40, target));
 };
 
 const lineupHas = (lineup: PlayerState[], predicate: (p: PlayerState) => boolean): boolean => lineup.some(predicate);
@@ -189,17 +224,20 @@ const lineupScore = (
   let bigs = 0;
 
   for (const ps of lineup) {
+    if (!ps.canPlay) return -9999;
     const target = targetMinutesForGameState(ps, quarter, secondsLeft, scoreMargin);
     const currentMin = ps.secondsPlayed / 60;
     const minutePressure = target - currentMin;
-    const fatigueHit = ps.fatigue * 18;
+    const fatigueHit = ps.fatigue * 12;
     const foulHit = ps.fouls >= leagueRules.game.foulsNeededToFoulOut ? 35 : ps.fouls * 3;
     const talent = ps.overall + ps.simpleRatings.playmaking * 0.12 + ps.simpleRatings.rebounding * 0.08;
 
-    score += talent + minutePressure * 2.9 - fatigueHit - foulHit;
+    score += talent + minutePressure * 6.2 - fatigueHit - foulHit;
 
-    if (['PG', 'SG'].includes(ps.player.position)) guards += 1;
-    if (['PF', 'C'].includes(ps.player.position)) bigs += 1;
+    const primary = ps.player.position;
+    const secondaries = ps.player.secondaryPositions;
+    if (primary === 'PG' || primary === 'SG' || secondaries.includes('PG') || secondaries.includes('SG')) guards += 1;
+    if (primary === 'PF' || primary === 'C' || secondaries.includes('PF') || secondaries.includes('C')) bigs += 1;
   }
 
   const hasHandler = lineupHas(
@@ -223,6 +261,8 @@ const lineupScore = (
 
   if (guards >= 5 || bigs >= 5) score -= 40;
   if (guards >= 4 || bigs >= 4) score -= 18;
+  if (lineup.filter((p) => p.player.position === 'C').length >= 3) score -= 20;
+  if (lineup.filter((p) => p.player.position === 'PG').length >= 3) score -= 16;
 
   return score;
 };
@@ -234,6 +274,7 @@ const chooseBestLineup = (
   scoreMargin: number,
   rng: RandomSource
 ): string[] => {
+  if (states.length <= 5) return states.map((s) => s.player.id);
   let bestIds = states.slice(0, 5).map((s) => s.player.id);
   let bestScore = Number.NEGATIVE_INFINITY;
 
@@ -268,7 +309,7 @@ const updateFatigue = (state: TeamSimState, tickSeconds: number): void => {
       ps.secondsPlayed += tickSeconds;
       ps.stintSeconds += tickSeconds;
       const stintTax = Math.max(0, ps.stintSeconds - 180) / 900;
-      ps.fatigue = Math.min(1, ps.fatigue + tickSeconds * (0.0007 + staminaFactor * 0.0015 + stintTax * 0.001));
+      ps.fatigue = Math.min(1, ps.fatigue + tickSeconds * (0.00045 + staminaFactor * 0.001 + stintTax * 0.0007));
     } else {
       ps.stintSeconds = 0;
       ps.fatigue = Math.max(0, ps.fatigue - tickSeconds * (0.001 + ps.simpleRatings.stamina * 0.00001));
@@ -291,6 +332,7 @@ const applyPossession = (
   const offMean = offLineup.reduce((sum, p) => sum + p.overall, 0) / offLineup.length;
   const defMean = defLineup.reduce((sum, p) => sum + p.overall, 0) / defLineup.length;
   const teamFatigue = offLineup.reduce((sum, p) => sum + p.fatigue, 0) / offLineup.length;
+  const defenseFatigue = defLineup.reduce((sum, p) => sum + p.fatigue, 0) / defLineup.length;
 
   const shooter = chooseByWeight(
     offLineup,
@@ -336,7 +378,7 @@ const applyPossession = (
   const defenseTeamFouls = defense.teamFoulsByPeriod[foulLimitIdx] ?? 0;
   const bonusMultiplier = defenseTeamFouls >= foulLimitForBonus ? 1.18 : 1;
 
-  const nonShootingFoulProb = 0.027 * leagueRules.simulation.foulRateFactor * (1 + teamFatigue * 0.1);
+  const nonShootingFoulProb = 0.027 * leagueRules.simulation.foulRateFactor * (1 + teamFatigue * 0.1 + defenseFatigue * 0.16);
   if (rng() < nonShootingFoulProb) {
     const defender = chooseByWeight(defLineup, (p) => p.simpleRatings.interiorDefense + p.simpleRatings.perimeterDefense, rng);
     const defenderRow = defense.box.find((b) => b.playerId === defender.player.id);
@@ -543,29 +585,61 @@ const applyPossession = (
   return 0;
 };
 
-const createTeamSimState = (context: TeamContext): TeamSimState => {
-  const states = context.players.map((player) => ({
-    player,
-    simpleRatings: simplifiedRatingsFromDetailed(player),
-    tendencies: legacyTendenciesFromPlayer(player),
-    rotationSlot: 0,
-    overall: calcOverall(player),
-    fatigue: 0,
-    fouls: 0,
-    secondsPlayed: 0,
-    stintSeconds: 0
-  }));
+const createTeamSimState = (context: TeamContext, options: SimulationOptions, warnings: string[]): TeamSimState => {
+  const prevDate = previousPlayedDate(options.schedule, context.team.id, options.gameNumber);
+  const restDays = prevDate && options.gameDate ? Math.max(0, daysBetween(prevDate, options.gameDate) - 1) : 2;
+  const shortRestBoost = restDays === 0 ? 0.12 : restDays === 1 ? 0.05 : 0;
+  const runtime = options.runtimePlayers ?? {};
 
-  states.sort((a, b) => b.player.minutesTarget - a.player.minutesTarget || b.overall - a.overall);
+  const allStates = context.players.map((player) => {
+    const rt = runtime[player.id];
+    const availability = rt?.injury ? 'injured' : rt?.availability ?? 'active';
+    const severeFatiguePenalty = (rt?.fatigue ?? 0) >= 85 ? 10 : (rt?.fatigue ?? 0) >= 75 ? 5 : 0;
+    return {
+      player,
+      simpleRatings: simplifiedRatingsFromDetailed(player),
+      tendencies: legacyTendenciesFromPlayer(player),
+      rotationSlot: rt?.rotationOrder ?? 99,
+      targetMinutes: Math.max(0, (rt?.minutesOverride ?? player.minutesTarget) - severeFatiguePenalty),
+      overall: calcOverall(player),
+      fatigue: Math.min(1, Math.max(0, (rt?.fatigue ?? 0) / 100 + shortRestBoost)),
+      availability,
+      canPlay: availability === 'active' || availability === 'reserve',
+      fouls: 0,
+      secondsPlayed: 0,
+      stintSeconds: 0
+    };
+  });
+
+  let states = allStates.filter((s) => s.canPlay);
+  states.sort((a, b) => {
+    const starterA = runtime[a.player.id]?.starter ? 1 : 0;
+    const starterB = runtime[b.player.id]?.starter ? 1 : 0;
+    return starterB - starterA || a.rotationSlot - b.rotationSlot || b.targetMinutes - a.targetMinutes || b.overall - a.overall;
+  });
+
+  if (states.length < 5) {
+    const emergency = allStates
+      .filter((s) => s.availability !== 'injured')
+      .sort((a, b) => b.overall - a.overall)
+      .slice(0, 5);
+    states = emergency;
+    warnings.push(`Emergency lineup for ${context.team.name}: fewer than 5 legal active/reserve players; forced inactive players to dress.`);    
+  }
+
   states.forEach((state, index) => {
     state.rotationSlot = index;
+    if (runtime[state.player.id]?.minutesOverride == null) {
+      const slotBase = index === 0 ? 33 : index <= 4 ? 28 : index <= 7 ? 16 : 8;
+      state.targetMinutes = Math.max(state.targetMinutes, slotBase);
+    }
   });
 
   return {
     context,
     states,
     lineup: states.slice(0, leagueRules.game.numPlayersOnCourt).map((s) => s.player.id),
-    box: initBox(context.players),
+    box: initBox(states.map((s) => s.player)),
     teamFoulsByPeriod: Array.from({ length: leagueRules.game.numPeriods }, () => 0)
   };
 };
@@ -587,14 +661,16 @@ export const simulateGame = (
   homeTeam: Team,
   awayTeam: Team,
   allPlayers: Player[],
-  seed = Date.now()
+  seed = Date.now(),
+  options: SimulationOptions = {}
 ): GameResult => {
   const rng = createSeededRandom(seed);
   const homeContext = calcTeamProfile(homeTeam, allPlayers);
   const awayContext = calcTeamProfile(awayTeam, allPlayers);
 
-  const home = createTeamSimState(homeContext);
-  const away = createTeamSimState(awayContext);
+  const warnings: string[] = [];
+  const home = createTeamSimState(homeContext, options, warnings);
+  const away = createTeamSimState(awayContext, options, warnings);
 
   const possessionsPerTeam = normalizePossessions(homeContext.pace, awayContext.pace, rng);
   const expectedTotalPossessions = possessionsPerTeam * 2;
@@ -621,7 +697,7 @@ export const simulateGame = (
 
     const margin = homeScore - awayScore;
 
-    if (i % 3 === 0 || quarterStart === elapsedSeconds) {
+    if (i % 8 === 0 || quarterStart === elapsedSeconds) {
       home.lineup = chooseBestLineup(home.states, quarter, secondsLeftInQuarter, margin, rng);
       away.lineup = chooseBestLineup(away.states, quarter, secondsLeftInQuarter, -margin, rng);
     }
@@ -674,6 +750,7 @@ export const simulateGame = (
       byQuarter: qScore.away,
       players: away.box
     },
-    winnerTeamId: homeScore > awayScore ? homeContext.team.id : awayContext.team.id
+    winnerTeamId: homeScore > awayScore ? homeContext.team.id : awayContext.team.id,
+    warnings: warnings.length > 0 ? warnings : undefined
   };
 };

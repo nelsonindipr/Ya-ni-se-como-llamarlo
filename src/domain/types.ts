@@ -4,6 +4,7 @@ export type PlayerType = 'native' | 'import' | 'reserved_rights';
 export type ContractStatus = 'active' | 'expiring' | 'unsigned';
 export type SeasonPhase = 'preseason' | 'regular_season' | 'trade_period' | 'playoffs' | 'offseason' | 'draft_free_agency';
 export type RosterStatus = 'active' | 'reserve' | 'injured_list';
+export type AvailabilityStatus = 'active' | 'reserve' | 'inactive' | 'injured';
 export type Position = 'PG' | 'SG' | 'SF' | 'PF' | 'C';
 export type ShootingHand = 'left' | 'right' | 'switch';
 export type PlayerRole =
@@ -206,6 +207,7 @@ export type GameResult = {
   home: TeamGameBox;
   away: TeamGameBox;
   winnerTeamId: string;
+  warnings?: string[];
 };
 
 export type ScheduledGame = {
