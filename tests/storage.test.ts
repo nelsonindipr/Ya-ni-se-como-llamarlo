@@ -35,6 +35,12 @@ describe('season storage utility', () => {
     const state = createNewGameState(2026);
     state.teams[0].wins = 10;
     state.showOverall = true;
+    const firstRuntime = Object.keys(state.runtimePlayers)[0];
+    state.runtimePlayers[firstRuntime].availability = 'reserve';
+    state.runtimePlayers[firstRuntime].fatigue = 42;
+    state.runtimePlayers[firstRuntime].minutesOverride = 18;
+    state.phase = 'trade_period';
+    state.currentDate = '2026-05-15';
 
     saveSeasonState(state);
     const loaded = loadSeasonState();
@@ -43,6 +49,10 @@ describe('season storage utility', () => {
     expect(loaded?.teams[0].wins).toBe(10);
     expect(loaded?.showOverall).toBe(true);
     expect(loaded?.version).toBe(5);
+    expect(loaded?.runtimePlayers[firstRuntime].availability).toBe('reserve');
+    expect(loaded?.runtimePlayers[firstRuntime].fatigue).toBe(42);
+    expect(loaded?.phase).toBe('trade_period');
+    expect(loaded?.currentDate).toBe('2026-05-15');
   });
 
   it('reset clears stored season state', () => {

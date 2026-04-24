@@ -10,10 +10,15 @@ import { leagueRules } from './domain/rules';
 import { pct } from './simulation/stats';
 import { toStandingRows } from './simulation/standings';
 import {
+  autoConfigureTeamRotation,
   createNewGameState,
   simulateByWindow,
   simulateNextPlayoffSeriesForState,
   simulateScheduledGame,
+  updatePlayerAvailability,
+  updatePlayerMinutesTarget,
+  updatePlayerStarter,
+  validateTeamRotation,
   type GameState
 } from './state/gameState';
 import { clearSeasonState, loadSeasonState, saveSeasonState } from './utils/storage';
@@ -108,17 +113,30 @@ function App() {
   }
 
   if (selectedTeam) {
+    const validation = validateTeamRotation(state, selectedTeam.id);
     return (
       <main>
         <h1>BSN GM Simulation — Foundation Build</h1>
         <TeamPage
           team={selectedTeam}
           roster={initialPlayers.filter((player) => player.teamId === selectedTeam.id)}
+          runtimePlayers={state.runtimePlayers}
           regularStats={state.stats.regularTeamStats[selectedTeam.id]}
           playoffStats={state.stats.playoffTeamStats[selectedTeam.id]}
           schedule={state.schedule.filter((g) => g.homeTeamId === selectedTeam.id || g.awayTeamId === selectedTeam.id)}
           teamNameById={teamNameById}
+          validationErrors={validation.errors}
           onPlayerClick={(playerId) => setState((s) => ({ ...s, selectedPlayerId: playerId, selectedTeamId: null }))}
+          onStarterToggle={(playerId, starter) =>
+            persist(updatePlayerStarter(state, selectedTeam.id, playerId, starter), 'Updated starter.')
+          }
+          onAvailabilityChange={(playerId, status) =>
+            persist(updatePlayerAvailability(state, playerId, status), 'Updated availability.')
+          }
+          onMinutesChange={(playerId, minutes) =>
+            persist(updatePlayerMinutesTarget(state, playerId, Number.isFinite(minutes) ? minutes : null), 'Updated minutes target.')
+          }
+          onAutoRotation={() => persist(autoConfigureTeamRotation(state, selectedTeam.id), 'Auto rotation applied.')}
           onBack={() => setState((s) => ({ ...s, selectedPlayerId: null, selectedTeamId: null }))}
         />
       </main>
