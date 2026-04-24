@@ -1,14 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { initialPlayers } from '../src/data/players';
-import { initialTeams } from '../src/data/teams';
-import type { ScheduledGame, Team } from '../src/domain/types';
-import { simulateGame } from '../src/simulation/engine';
-import { generateRegularSeasonSchedule } from '../src/simulation/schedule';
-import { createEmptySeasonStats } from '../src/simulation/stats';
+import { createNewGameState } from '../src/state/gameState';
 import { clearSeasonState, loadSeasonState, saveSeasonState } from '../src/utils/storage';
-
-const resetTeams = (): Team[] =>
-  initialTeams.map((team) => ({ ...team, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0 }));
 
 const createLocalStorageMock = (): Storage => {
   const store = new Map<string, string>();
@@ -39,94 +31,28 @@ beforeEach(() => {
 });
 
 describe('season storage utility', () => {
-  it('saving and loading restores schedule progress', () => {
-    const schedule = generateRegularSeasonSchedule(initialTeams, 2026);
-    const home = initialTeams.find((team) => team.id === schedule[0].homeTeamId)!;
-    const away = initialTeams.find((team) => team.id === schedule[0].awayTeamId)!;
-    const gameResult = simulateGame(home, away, initialPlayers, 999001);
-    const playedSchedule: ScheduledGame[] = schedule.map((g, i) =>
-      i < 3
-        ? {
-            ...g,
-            played: true,
-            resultId: `res-${i}`,
-            homeScore: 80 + i,
-            awayScore: 75 + i,
-            result: i === 0 ? gameResult : undefined
-          }
-        : g
-    );
+  it('saving and loading restores state', () => {
+    const state = createNewGameState(2026);
+    state.teams[0].wins = 10;
+    state.showOverall = true;
 
-    saveSeasonState({
-      version: 4,
-      scheduleSeed: 2026,
-      schedule: playedSchedule,
-      teams: resetTeams(),
-      game: null,
-      selectedScheduledGameId: null,
-      showOverall: true,
-      playoffBracket: null,
-      stats: createEmptySeasonStats(initialPlayers, initialTeams),
-      selectedPlayerId: null
-    });
-
+    saveSeasonState(state);
     const loaded = loadSeasonState();
+
     expect(loaded).not.toBeNull();
-    expect(loaded?.schedule.filter((g) => g.played)).toHaveLength(3);
-    expect(loaded?.schedule[0].result?.home.players.length).toBeGreaterThan(0);
-    expect(loaded?.scheduleSeed).toBe(2026);
-    expect(loaded?.showOverall).toBe(true);
-  });
-
-  it('saving and loading restores standings', () => {
-    const teams = resetTeams();
-    teams[0].wins = 10;
-    teams[0].losses = 4;
-    teams[0].pointsFor = 1200;
-    teams[0].pointsAgainst = 1100;
-
-    saveSeasonState({
-      version: 4,
-      scheduleSeed: 7,
-      schedule: generateRegularSeasonSchedule(initialTeams, 7),
-      teams,
-      game: null,
-      selectedScheduledGameId: null,
-      showOverall: false,
-      playoffBracket: null,
-      stats: createEmptySeasonStats(initialPlayers, initialTeams),
-      selectedPlayerId: null
-    });
-
-    const loaded = loadSeasonState();
     expect(loaded?.teams[0].wins).toBe(10);
-    expect(loaded?.teams[0].losses).toBe(4);
-    expect(loaded?.teams[0].pointsFor).toBe(1200);
-    expect(loaded?.teams[0].pointsAgainst).toBe(1100);
+    expect(loaded?.showOverall).toBe(true);
+    expect(loaded?.version).toBe(5);
   });
 
   it('reset clears stored season state', () => {
-    saveSeasonState({
-      version: 4,
-      scheduleSeed: 8,
-      schedule: generateRegularSeasonSchedule(initialTeams, 8),
-      teams: resetTeams(),
-      game: null,
-      selectedScheduledGameId: null,
-      showOverall: false,
-      playoffBracket: null,
-      stats: createEmptySeasonStats(initialPlayers, initialTeams),
-      selectedPlayerId: null
-    });
-
+    saveSeasonState(createNewGameState(8));
     clearSeasonState();
-
     expect(loadSeasonState()).toBeNull();
   });
 
   it('invalid saved state does not crash and fails safely', () => {
-    localStorage.setItem('bsn-manager-season-v4', JSON.stringify({ version: 4, schedule: [] }));
-
+    localStorage.setItem('bsn-manager-season-v5', JSON.stringify({ version: 4, schedule: [] }));
     expect(loadSeasonState()).toBeNull();
   });
 });

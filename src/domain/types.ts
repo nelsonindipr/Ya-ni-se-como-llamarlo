@@ -2,6 +2,7 @@ export type Conference = 'A' | 'B';
 
 export type PlayerType = 'native' | 'import' | 'reserved_rights';
 export type ContractStatus = 'active' | 'expiring' | 'unsigned';
+export type SeasonPhase = 'preseason' | 'regular_season' | 'trade_period' | 'playoffs' | 'offseason' | 'draft_free_agency';
 export type RosterStatus = 'active' | 'reserve' | 'injured_list';
 export type Position = 'PG' | 'SG' | 'SF' | 'PF' | 'C';
 export type ShootingHand = 'left' | 'right' | 'switch';
@@ -210,6 +211,8 @@ export type GameResult = {
 export type ScheduledGame = {
   id: string;
   gameNumber: number;
+  date: string;
+  phase: 'regular_season' | 'playoffs';
   homeTeamId: string;
   awayTeamId: string;
   played: boolean;

@@ -72,6 +72,8 @@ const buildGamesFromRequirements = (requirements: PairRequirement[], rng: Random
       games.push({
         id: '',
         gameNumber: 0,
+        date: '',
+        phase: 'regular_season',
         homeTeamId: req.a,
         awayTeamId: req.b,
         played: false
@@ -82,6 +84,8 @@ const buildGamesFromRequirements = (requirements: PairRequirement[], rng: Random
       games.push({
         id: '',
         gameNumber: 0,
+        date: '',
+        phase: 'regular_season',
         homeTeamId: req.b,
         awayTeamId: req.a,
         played: false
@@ -114,6 +118,35 @@ const buildGamesFromRequirements = (requirements: PairRequirement[], rng: Random
   }));
 };
 
+
+const assignDates = (schedule: ScheduledGame[], startDateISO: string): ScheduledGame[] => {
+  const dated: ScheduledGame[] = [];
+  const byDateTeam = new Map<string, Set<string>>();
+
+  for (const game of schedule) {
+    let dayOffset = 0;
+    while (true) {
+      const d = new Date(`${startDateISO}T00:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() + dayOffset);
+      const iso = d.toISOString().slice(0, 10);
+      const key = iso;
+      const used = byDateTeam.get(key) ?? new Set<string>();
+
+      if (!used.has(game.homeTeamId) && !used.has(game.awayTeamId) && used.size <= 10) {
+        used.add(game.homeTeamId);
+        used.add(game.awayTeamId);
+        byDateTeam.set(key, used);
+        dated.push({ ...game, date: iso, phase: 'regular_season' });
+        break;
+      }
+
+      dayOffset += 1;
+    }
+  }
+
+  return dated;
+};
+
 const countPairMeetings = (schedule: ScheduledGame[]): Map<string, PairCount> => {
   const counts = new Map<string, PairCount>();
 
@@ -139,6 +172,8 @@ export const validateRegularSeasonSchedule = (schedule: ScheduledGame[], teams: 
   for (const teamId of teamIds) byTeam.set(teamId, { total: 0, home: 0, away: 0 });
 
   const ids = new Set<string>();
+  const teamDateKeys = new Set<string>();
+
   for (const game of schedule) {
     if (ids.has(game.id)) errors.push(`Duplicate game id ${game.id}.`);
     ids.add(game.id);
@@ -148,6 +183,14 @@ export const validateRegularSeasonSchedule = (schedule: ScheduledGame[], teams: 
       errors.push(`Unknown team in game ${game.id}.`);
       continue;
     }
+
+    const homeDateKey = `${game.homeTeamId}|${game.date}`;
+    const awayDateKey = `${game.awayTeamId}|${game.date}`;
+    if (teamDateKeys.has(homeDateKey) || teamDateKeys.has(awayDateKey)) {
+      errors.push(`Team scheduled twice on ${game.date} (${game.id}).`);
+    }
+    teamDateKeys.add(homeDateKey);
+    teamDateKeys.add(awayDateKey);
 
     const home = byTeam.get(game.homeTeamId);
     const away = byTeam.get(game.awayTeamId);
@@ -213,10 +256,11 @@ export const validateRegularSeasonSchedule = (schedule: ScheduledGame[], teams: 
   return { valid: errors.length === 0, errors };
 };
 
-export const generateRegularSeasonSchedule = (teams: Team[], seed: number): ScheduledGame[] => {
+export const generateRegularSeasonSchedule = (teams: Team[], seed: number, startDateISO = '2026-04-01'): ScheduledGame[] => {
   const rng = createSeededRandom(seed);
   const requirements = buildPairRequirements(teams);
-  const schedule = buildGamesFromRequirements(requirements, rng);
+  const baseSchedule = buildGamesFromRequirements(requirements, rng);
+  const schedule = assignDates(baseSchedule, startDateISO);
 
   const validation = validateRegularSeasonSchedule(schedule, teams);
   if (!validation.valid) {
