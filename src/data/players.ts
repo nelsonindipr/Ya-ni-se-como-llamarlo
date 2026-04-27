@@ -1,57 +1,104 @@
-import type { Player, PlayerRole, PlayerTendencies, Position } from '../domain/types';
+import type { Player, PlayerArchetype, PlayerRatings, PlayerRole, PlayerTendencies, PlayerTier, Position } from '../domain/types';
 
 const SOURCE_NOTE = 'BSN 2026 roster document updated April 23, 2026';
 
-type PositionProfile = {
-  role: PlayerRole;
-  minutesTarget: number;
-  tendencies: PlayerTendencies;
-  base: number;
-};
+type PositionProfile = { role: PlayerRole; minutesTarget: number };
 
 const profiles: Record<Position, PositionProfile> = {
-  PG: { role: 'primary_ball_handler', minutesTarget: 26, base: 72, tendencies: { threePointTendency: 0.32, midRangeTendency: 0.14, driveTendency: 0.35, postUpTendency: 0.02, passTendency: 0.58, drawFoulTendency: 0.14, crashOffGlassTendency: 0.05 } },
-  SG: { role: 'wing_scorer', minutesTarget: 24, base: 71, tendencies: { threePointTendency: 0.38, midRangeTendency: 0.17, driveTendency: 0.3, postUpTendency: 0.03, passTendency: 0.35, drawFoulTendency: 0.12, crashOffGlassTendency: 0.07 } },
-  SF: { role: '3_and_d', minutesTarget: 23, base: 70, tendencies: { threePointTendency: 0.33, midRangeTendency: 0.17, driveTendency: 0.28, postUpTendency: 0.07, passTendency: 0.3, drawFoulTendency: 0.11, crashOffGlassTendency: 0.12 } },
-  PF: { role: 'stretch_big', minutesTarget: 22, base: 69, tendencies: { threePointTendency: 0.25, midRangeTendency: 0.18, driveTendency: 0.24, postUpTendency: 0.18, passTendency: 0.24, drawFoulTendency: 0.13, crashOffGlassTendency: 0.18 } },
-  C: { role: 'rim_protector', minutesTarget: 21, base: 70, tendencies: { threePointTendency: 0.08, midRangeTendency: 0.11, driveTendency: 0.18, postUpTendency: 0.33, passTendency: 0.19, drawFoulTendency: 0.17, crashOffGlassTendency: 0.24 } }
+  PG: { role: 'primary_ball_handler', minutesTarget: 26 },
+  SG: { role: 'wing_scorer', minutesTarget: 24 },
+  SF: { role: '3_and_d', minutesTarget: 23 },
+  PF: { role: 'stretch_big', minutesTarget: 22 },
+  C: { role: 'rim_protector', minutesTarget: 21 }
 };
 
 const clamp = (value: number): number => Math.max(25, Math.min(99, Math.round(value)));
 
-const ratingsFromProfile = (position: Position, age: number, isImport: boolean) => {
-  const profile = profiles[position];
-  const ageAdj = age <= 24 ? 1 : age >= 35 ? -1 : 0;
-  const importAdj = isImport ? 2 : 0;
-  const base = profile.base + ageAdj + importAdj;
-  return {
-    closeShot: clamp(base + (position === 'C' || position === 'PF' ? 4 : 1)),
-    drivingLayup: clamp(base + (position === 'PG' || position === 'SG' ? 5 : 1)),
-    drivingDunk: clamp(base + (position === 'SF' || position === 'PF' ? 4 : position === 'C' ? 3 : -1)),
-    standingDunk: clamp(base + (position === 'C' ? 8 : position === 'PF' ? 5 : -4)),
-    postControl: clamp(base + (position === 'C' || position === 'PF' ? 6 : -1)),
-    midRange: clamp(base + 1),
-    threePoint: clamp(base + (position === 'PG' || position === 'SG' || position === 'SF' ? 4 : -2)),
-    freeThrow: clamp(base + 3),
-    shotCreation: clamp(base + (position === 'PG' || position === 'SG' ? 5 : 0)),
-    offBallMovement: clamp(base + (position === 'SG' || position === 'SF' ? 3 : 0)),
-    passAccuracy: clamp(base + (position === 'PG' ? 8 : position === 'SG' ? 3 : 0)),
-    ballHandle: clamp(base + (position === 'PG' ? 8 : position === 'SG' ? 4 : -1)),
-    speedWithBall: clamp(base + (position === 'PG' ? 8 : position === 'SG' ? 4 : 0)),
-    interiorDefense: clamp(base + (position === 'C' ? 8 : position === 'PF' ? 5 : -2)),
-    perimeterDefense: clamp(base + (position === 'SF' || position === 'SG' ? 4 : -1)),
-    steal: clamp(base + (position === 'PG' || position === 'SG' ? 4 : -1)),
-    block: clamp(base + (position === 'C' ? 10 : position === 'PF' ? 5 : -4)),
-    offensiveRebound: clamp(base + (position === 'C' ? 9 : position === 'PF' ? 6 : -2)),
-    defensiveRebound: clamp(base + (position === 'C' ? 9 : position === 'PF' ? 6 : 0)),
-    speed: clamp(base + (position === 'PG' ? 8 : position === 'SG' ? 5 : 0)),
-    acceleration: clamp(base + (position === 'PG' ? 8 : position === 'SG' ? 5 : 0)),
-    strength: clamp(base + (position === 'C' ? 8 : position === 'PF' ? 5 : -1)),
-    vertical: clamp(base + (position === 'SF' || position === 'PF' ? 4 : 2)),
-    stamina: clamp(78 + (isImport ? 1 : 0) + (age <= 24 ? 1 : 0) - (age >= 36 ? 2 : 0)),
-    offensiveIQ: clamp(base + 2),
-    defensiveIQ: clamp(base + (position === 'C' || position === 'PF' ? 3 : 1))
+const tierBase: Record<PlayerTier, number> = {
+  superstar: 91,
+  star: 86,
+  strong_starter: 82,
+  starter: 77,
+  rotation: 72,
+  bench: 67,
+  prospect: 62
+};
+
+const ageCurve = (age: number): number => {
+  if (age <= 21) return -1;
+  if (age <= 25) return 1;
+  if (age <= 31) return 0;
+  if (age <= 35) return -1;
+  if (age <= 38) return -2;
+  return -3;
+};
+
+const importMod = (isImport: boolean): number => (isImport ? 2 : 0);
+
+const archetypeMods: Record<PlayerArchetype, Partial<Record<keyof PlayerRatings, number>>> = {
+  balanced_guard: { passAccuracy: 2, ballHandle: 2, speed: 1, acceleration: 1 },
+  playmaker: { passAccuracy: 6, ballHandle: 4, speedWithBall: 3, shotCreation: 2, offensiveIQ: 3 },
+  movement_shooter: { threePoint: 6, offBallMovement: 5, midRange: 2, drivingDunk: -2 },
+  shot_creator: { shotCreation: 5, ballHandle: 3, midRange: 3, drivingLayup: 2, offensiveIQ: 2 },
+  slasher: { drivingLayup: 5, drivingDunk: 4, speedWithBall: 3, freeThrow: 2, threePoint: -2 },
+  '3_and_d_wing': { threePoint: 4, perimeterDefense: 5, steal: 3, offBallMovement: 2 },
+  versatile_forward: { closeShot: 3, midRange: 3, perimeterDefense: 2, interiorDefense: 2, offensiveIQ: 2 },
+  stretch_big: { threePoint: 5, midRange: 3, standingDunk: -2, postControl: -1 },
+  post_scorer: { closeShot: 5, standingDunk: 4, postControl: 5, strength: 3, passAccuracy: -1 },
+  rim_protector: { interiorDefense: 6, block: 7, defensiveRebound: 4, standingDunk: 3, threePoint: -4 },
+  rebounding_big: { offensiveRebound: 6, defensiveRebound: 7, strength: 3, interiorDefense: 3 },
+  energy_big: { offensiveRebound: 4, defensiveRebound: 4, vertical: 3, stamina: 3, shotCreation: -2 }
+};
+
+const positionMods: Record<Position, Partial<Record<keyof PlayerRatings, number>>> = {
+  PG: { drivingLayup: 2, passAccuracy: 3, ballHandle: 4, speedWithBall: 3, speed: 4, acceleration: 4, interiorDefense: -3, block: -4, strength: -3 },
+  SG: { threePoint: 2, shotCreation: 2, perimeterDefense: 1, speed: 2, acceleration: 2, interiorDefense: -2, block: -3 },
+  SF: { closeShot: 1, drivingDunk: 2, perimeterDefense: 2, defensiveRebound: 1, strength: 1 },
+  PF: { closeShot: 3, standingDunk: 3, postControl: 3, interiorDefense: 3, offensiveRebound: 3, defensiveRebound: 3, speed: -1, acceleration: -1 },
+  C: { closeShot: 4, standingDunk: 5, postControl: 4, interiorDefense: 5, block: 6, offensiveRebound: 5, defensiveRebound: 5, speed: -3, acceleration: -3, threePoint: -3 }
+};
+
+const applyMods = (target: PlayerRatings, mods: Partial<Record<keyof PlayerRatings, number>>) => {
+  for (const [key, delta] of Object.entries(mods)) {
+    const ratingKey = key as keyof PlayerRatings;
+    target[ratingKey] = clamp(target[ratingKey] + (delta ?? 0));
+  }
+};
+
+const buildRatings = (position: Position, tier: PlayerTier, archetype: PlayerArchetype, age: number, isImport: boolean): PlayerRatings => {
+  const base = tierBase[tier] + ageCurve(age) + importMod(isImport);
+  const ratings: PlayerRatings = {
+    closeShot: clamp(base),
+    drivingLayup: clamp(base),
+    drivingDunk: clamp(base - 1),
+    standingDunk: clamp(base - 1),
+    postControl: clamp(base - 1),
+    midRange: clamp(base),
+    threePoint: clamp(base),
+    freeThrow: clamp(base + 1),
+    shotCreation: clamp(base),
+    offBallMovement: clamp(base),
+    passAccuracy: clamp(base),
+    ballHandle: clamp(base),
+    speedWithBall: clamp(base),
+    interiorDefense: clamp(base),
+    perimeterDefense: clamp(base),
+    steal: clamp(base - 1),
+    block: clamp(base - 1),
+    offensiveRebound: clamp(base - 1),
+    defensiveRebound: clamp(base),
+    speed: clamp(base),
+    acceleration: clamp(base),
+    strength: clamp(base),
+    vertical: clamp(base),
+    stamina: clamp(base + 2),
+    offensiveIQ: clamp(base + 1),
+    defensiveIQ: clamp(base + 1)
   };
+
+  applyMods(ratings, positionMods[position]);
+  applyMods(ratings, archetypeMods[archetype]);
+  return ratings;
 };
 
 const teamNameToId: Record<string, string> = {
@@ -326,6 +373,46 @@ type ParsedPlayer = {
   refuerzo: string;
 };
 
+const inferTier = (entry: ParsedPlayer, position: Position, isImport: boolean): PlayerTier => {
+  const veteranPenalty = entry.age >= 37 ? -2 : entry.age >= 34 ? -1 : 0;
+  const importBoost = isImport ? 2 : 0;
+  const primeBoost = entry.age <= 29 && entry.age >= 24 ? 1 : 0;
+  const bigBoost = position === 'C' && isImport ? 1 : 0;
+  const score = importBoost + primeBoost + bigBoost + veteranPenalty;
+
+  if (score >= 4) return 'superstar';
+  if (score >= 3) return 'star';
+  if (score >= 2) return 'strong_starter';
+  if (score >= 1) return 'starter';
+  if (score >= 0) return 'rotation';
+  if (score >= -1) return 'bench';
+  return 'prospect';
+};
+
+const inferArchetype = (position: Position, secondaryPositions: Position[], isImport: boolean, age: number): PlayerArchetype => {
+  if (position === 'PG') return isImport ? 'playmaker' : 'balanced_guard';
+  if (position === 'SG') return age >= 33 ? 'movement_shooter' : 'shot_creator';
+  if (position === 'SF') return isImport ? '3_and_d_wing' : 'versatile_forward';
+  if (position === 'PF') return secondaryPositions.includes('C') ? 'rebounding_big' : 'stretch_big';
+  if (position === 'C') return isImport ? 'rim_protector' : age <= 26 ? 'energy_big' : 'post_scorer';
+  return 'versatile_forward';
+};
+
+const tendenciesByArchetype: Record<PlayerArchetype, PlayerTendencies> = {
+  balanced_guard: { threePointTendency: 0.3, midRangeTendency: 0.15, driveTendency: 0.33, postUpTendency: 0.02, passTendency: 0.56, drawFoulTendency: 0.14, crashOffGlassTendency: 0.06 },
+  playmaker: { threePointTendency: 0.28, midRangeTendency: 0.12, driveTendency: 0.36, postUpTendency: 0.02, passTendency: 0.62, drawFoulTendency: 0.16, crashOffGlassTendency: 0.05 },
+  movement_shooter: { threePointTendency: 0.48, midRangeTendency: 0.17, driveTendency: 0.2, postUpTendency: 0.02, passTendency: 0.3, drawFoulTendency: 0.1, crashOffGlassTendency: 0.06 },
+  shot_creator: { threePointTendency: 0.34, midRangeTendency: 0.2, driveTendency: 0.32, postUpTendency: 0.03, passTendency: 0.35, drawFoulTendency: 0.15, crashOffGlassTendency: 0.07 },
+  slasher: { threePointTendency: 0.18, midRangeTendency: 0.13, driveTendency: 0.47, postUpTendency: 0.04, passTendency: 0.31, drawFoulTendency: 0.2, crashOffGlassTendency: 0.1 },
+  '3_and_d_wing': { threePointTendency: 0.42, midRangeTendency: 0.12, driveTendency: 0.24, postUpTendency: 0.05, passTendency: 0.27, drawFoulTendency: 0.11, crashOffGlassTendency: 0.12 },
+  versatile_forward: { threePointTendency: 0.29, midRangeTendency: 0.18, driveTendency: 0.27, postUpTendency: 0.11, passTendency: 0.29, drawFoulTendency: 0.12, crashOffGlassTendency: 0.14 },
+  stretch_big: { threePointTendency: 0.34, midRangeTendency: 0.2, driveTendency: 0.17, postUpTendency: 0.16, passTendency: 0.24, drawFoulTendency: 0.12, crashOffGlassTendency: 0.17 },
+  post_scorer: { threePointTendency: 0.08, midRangeTendency: 0.14, driveTendency: 0.14, postUpTendency: 0.38, passTendency: 0.2, drawFoulTendency: 0.17, crashOffGlassTendency: 0.24 },
+  rim_protector: { threePointTendency: 0.06, midRangeTendency: 0.1, driveTendency: 0.16, postUpTendency: 0.32, passTendency: 0.19, drawFoulTendency: 0.16, crashOffGlassTendency: 0.26 },
+  rebounding_big: { threePointTendency: 0.1, midRangeTendency: 0.14, driveTendency: 0.18, postUpTendency: 0.26, passTendency: 0.2, drawFoulTendency: 0.15, crashOffGlassTendency: 0.28 },
+  energy_big: { threePointTendency: 0.09, midRangeTendency: 0.11, driveTendency: 0.22, postUpTendency: 0.2, passTendency: 0.18, drawFoulTendency: 0.16, crashOffGlassTendency: 0.3 }
+};
+
 const parsedPlayers: ParsedPlayer[] = [];
 let currentTeamId = '';
 for (const rawLine of rosterDocument.split('\n')) {
@@ -365,6 +452,8 @@ export const initialPlayers: Player[] = parsedPlayers.map((entry, index) => {
   const { position, secondaryPositions } = mapPosition(entry.positionText);
   const { firstName, lastName } = splitName(entry.displayName);
   const profile = profiles[position];
+  const tier = inferTier(entry, position, isImport);
+  const archetype = inferArchetype(position, secondaryPositions, isImport, entry.age);
 
   const playerType = isImport ? 'import' : 'native';
   const notes: string[] = [];
@@ -393,8 +482,10 @@ export const initialPlayers: Player[] = parsedPlayers.map((entry, index) => {
     previousTeam: 'N/D',
     yearsPro: Math.max(0, entry.age - 21),
     role: profile.role,
-    tendencies: profile.tendencies,
-    ratings: ratingsFromProfile(position, entry.age, isImport),
+    tier,
+    archetype,
+    tendencies: tendenciesByArchetype[archetype],
+    ratings: buildRatings(position, tier, archetype, entry.age, isImport),
     minutesTarget: profile.minutesTarget,
     playerType,
     contractStatus: 'active',

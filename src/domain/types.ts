@@ -17,6 +17,29 @@ export type PlayerRole =
   | '3_and_d'
   | 'bench_spark';
 
+export type PlayerTier =
+  | 'superstar'
+  | 'star'
+  | 'strong_starter'
+  | 'starter'
+  | 'rotation'
+  | 'bench'
+  | 'prospect';
+
+export type PlayerArchetype =
+  | 'balanced_guard'
+  | 'playmaker'
+  | 'movement_shooter'
+  | 'shot_creator'
+  | 'slasher'
+  | '3_and_d_wing'
+  | 'versatile_forward'
+  | 'stretch_big'
+  | 'post_scorer'
+  | 'rim_protector'
+  | 'rebounding_big'
+  | 'energy_big';
+
 export type PlayerTendencies = {
   threePointTendency: number;
   midRangeTendency: number;
@@ -104,6 +127,8 @@ export type Player = {
   previousTeam: string;
   yearsPro: number;
   role: PlayerRole;
+  tier: PlayerTier;
+  archetype: PlayerArchetype;
   tendencies: PlayerTendencies;
   ratings: PlayerRatings;
   minutesTarget: number;
