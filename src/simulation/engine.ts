@@ -1,5 +1,5 @@
 import type { AvailabilityStatus, GameResult, Player, PlayerBoxScore, ScheduledGame, SimplifiedPlayerRatings, Team } from '../domain/types';
-import { legacyTendenciesFromPlayer, simplifiedRatingsFromDetailed } from '../domain/playerRatings';
+import { calculatePlayerOverall, legacyTendenciesFromPlayer, simplifiedRatingsFromDetailed } from '../domain/playerRatings';
 import { leagueRules } from '../domain/rules';
 import { createSeededRandom, randomInt, type RandomSource } from './random';
 
@@ -50,19 +50,27 @@ type TeamSimState = {
   teamFoulsByPeriod: number[];
 };
 
-const calcOverall = (player: Player): number => {
-  const simplified = simplifiedRatingsFromDetailed(player);
+const calcOverall = (player: Player): number => calculatePlayerOverall(player);
 
-  return Math.round(
-    simplified.insideScoring * 0.14 +
-      simplified.midRangeScoring * 0.1 +
-      simplified.threePointScoring * 0.14 +
-      simplified.playmaking * 0.12 +
-      simplified.perimeterDefense * 0.14 +
-      simplified.interiorDefense * 0.14 +
-      simplified.rebounding * 0.12 +
-      simplified.stamina * 0.1
-  );
+export const calculateMakeProbability = (params: {
+  shotRating: number;
+  defenseRating: number;
+  shootThree: boolean;
+  offenseBoost: number;
+  fatigue: number;
+  marginForOffense: number;
+  quarter: number;
+  secondsLeftInQuarter: number;
+}): number => {
+  const { shotRating, defenseRating, shootThree, offenseBoost, fatigue, marginForOffense, quarter, secondsLeftInQuarter } = params;
+  let makeProb = 0.425 + (shotRating - defenseRating) * 0.005;
+  makeProb += shootThree ? -0.045 : 0.035;
+  makeProb *= shootThree ? leagueRules.simulation.threePointAccuracyFactor : leagueRules.simulation.twoPointAccuracyFactor;
+  makeProb *= offenseBoost;
+  makeProb -= fatigue * 0.07;
+  makeProb += Math.max(-0.02, Math.min(0.02, marginForOffense * -0.0012));
+  if (quarter === 4 && secondsLeftInQuarter <= 120) makeProb += shootThree ? 0.003 : -0.003;
+  return Math.max(0.2, Math.min(0.69, makeProb));
 };
 
 const calcTeamProfile = (team: Team, allPlayers: Player[]): TeamContext => {
@@ -436,7 +444,7 @@ const applyPossession = (
   const driveRate = Math.min(0.7, shooter.tendencies.driveRate);
   const rawPostRate = Math.min(0.45, shooter.tendencies.postUpRate);
   const postRate =
-    ['PF', 'C'].includes(shooter.player.position) || ['stretch_big', 'rim_protector', 'energy_big'].includes(shooter.player.role)
+    ['PF', 'C'].includes(shooter.player.position) || ['stretch_big', 'rim_protector', 'energy_big', 'rebounding_big', 'post_scorer'].includes(shooter.player.archetype)
       ? rawPostRate
       : rawPostRate * 0.35;
   const shootThree = zoneRoll < shot3Rate;
@@ -455,14 +463,16 @@ const applyPossession = (
       0
     ) / defLineup.length;
 
-  let makeProb = 0.425 + (shotRating - defenseRating) * 0.005;
-  makeProb += shootThree ? -0.045 : 0.035;
-  makeProb *= shootThree ? leagueRules.simulation.threePointAccuracyFactor : leagueRules.simulation.twoPointAccuracyFactor;
-  makeProb *= offenseBoost;
-  makeProb -= shooter.fatigue * 0.07;
-  makeProb += Math.max(-0.02, Math.min(0.02, marginForOffense * -0.0012));
-  if (quarter === 4 && secondsLeftInQuarter <= 120) makeProb += shootThree ? 0.003 : -0.003;
-  makeProb = Math.max(0.2, Math.min(0.69, makeProb));
+  const makeProb = calculateMakeProbability({
+    shotRating,
+    defenseRating,
+    shootThree,
+    offenseBoost,
+    fatigue: shooter.fatigue,
+    marginForOffense,
+    quarter,
+    secondsLeftInQuarter
+  });
 
   shooterRow.fga += 1;
   if (shootThree) shooterRow.tpa += 1;

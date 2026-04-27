@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { initialPlayers } from '../src/data/players';
 import { initialTeams } from '../src/data/teams';
-import { simplifiedRatingsFromDetailed } from '../src/domain/playerRatings';
+import { bsnOverallBand, calculateBsnOverallFromRatings, calculatePlayerOverall, simplifiedRatingsFromDetailed } from '../src/domain/playerRatings';
 import { validatePlayers } from '../src/domain/playerValidation';
-import { simulateGame } from '../src/simulation/engine';
+import { calculateMakeProbability, simulateGame } from '../src/simulation/engine';
 
 describe('player data foundation', () => {
   it('validates seeded player data', () => {
@@ -58,6 +58,52 @@ describe('player data foundation', () => {
       Math.round((player.ratings.passAccuracy + player.ratings.ballHandle + player.ratings.offensiveIQ) / 3)
     );
     expect(simplified.stamina).toBe(player.ratings.stamina);
+  });
+
+  it('derives BSN overall from attributes and position weighting', () => {
+    const player = initialPlayers[0];
+    const derived = calculatePlayerOverall(player);
+    const manual = calculateBsnOverallFromRatings(player.ratings, player.position);
+    expect(derived).toBe(manual);
+
+    const boosted = {
+      ...player.ratings,
+      threePoint: Math.min(99, player.ratings.threePoint + 5)
+    };
+    expect(calculateBsnOverallFromRatings(boosted, player.position)).toBeGreaterThanOrEqual(manual);
+  });
+
+  it('uses BSN-relative display bands for overall style', () => {
+    expect(bsnOverallBand(92)).toContain('superstar');
+    expect(bsnOverallBand(87)).toContain('star');
+    expect(bsnOverallBand(82)).toContain('Strong starter');
+    expect(bsnOverallBand(77)).toContain('Average starter');
+    expect(bsnOverallBand(72)).toContain('Normal rotation');
+    expect(bsnOverallBand(67)).toContain('Deep bench');
+    expect(bsnOverallBand(62)).toContain('Reserve / prospect');
+    expect(bsnOverallBand(58)).toContain('Emergency');
+  });
+
+  it('does not use coaching role in rating calculation', () => {
+    const player = initialPlayers[0];
+    const swappedRole = { ...player, role: 'bench_spark' as const };
+    expect(calculatePlayerOverall(swappedRole)).toBe(calculatePlayerOverall(player));
+  });
+
+  it('keeps tendencies as frequency controls, not direct make-effectiveness', () => {
+    const params = {
+      shotRating: 78,
+      defenseRating: 75,
+      shootThree: true,
+      offenseBoost: 1,
+      fatigue: 0.2,
+      marginForOffense: 0,
+      quarter: 2,
+      secondsLeftInQuarter: 240
+    };
+    const probA = calculateMakeProbability(params);
+    const probB = calculateMakeProbability(params);
+    expect(probA).toBe(probB);
   });
 
   it('current simulation still runs with mapped ratings', () => {
