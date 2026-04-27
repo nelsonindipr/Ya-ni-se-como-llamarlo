@@ -1,15 +1,103 @@
 import type { Player, PlayerRatings, Position, SimplifiedPlayerRatings } from './types';
 
-const roundRating = (value: number): number => Math.round(Math.max(25, Math.min(99, value)));
+const clampRating = (value: number): number => Math.max(25, Math.min(99, value));
+const roundRating = (value: number): number => Math.round(clampRating(value));
 
 const avg = (...values: number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
 
-const positionOverallWeights: Record<Position, [number, number, number, number, number, number, number, number]> = {
-  PG: [0.12, 0.1, 0.16, 0.22, 0.14, 0.07, 0.06, 0.13],
-  SG: [0.13, 0.13, 0.2, 0.15, 0.16, 0.06, 0.05, 0.12],
-  SF: [0.15, 0.12, 0.16, 0.13, 0.19, 0.11, 0.06, 0.08],
-  PF: [0.2, 0.1, 0.1, 0.09, 0.13, 0.2, 0.1, 0.08],
-  C: [0.21, 0.07, 0.04, 0.06, 0.08, 0.27, 0.18, 0.09]
+type PositionOverallWeights = Record<Position, Partial<Record<keyof Player['ratings'], number>>>;
+
+export const POSITION_OVERALL_WEIGHTS: PositionOverallWeights = {
+  PG: {
+    passAccuracy: 0.14,
+    ballHandle: 0.13,
+    speedWithBall: 0.09,
+    offensiveIQ: 0.09,
+    threePoint: 0.08,
+    shotCreation: 0.08,
+    drivingLayup: 0.07,
+    perimeterDefense: 0.07,
+    steal: 0.05,
+    speed: 0.05,
+    acceleration: 0.05,
+    freeThrow: 0.03,
+    midRange: 0.03,
+    defensiveIQ: 0.03,
+    stamina: 0.01
+  },
+  SG: {
+    threePoint: 0.14,
+    shotCreation: 0.11,
+    drivingLayup: 0.09,
+    midRange: 0.08,
+    offBallMovement: 0.08,
+    perimeterDefense: 0.08,
+    ballHandle: 0.07,
+    speedWithBall: 0.06,
+    offensiveIQ: 0.06,
+    passAccuracy: 0.05,
+    freeThrow: 0.05,
+    steal: 0.04,
+    speed: 0.04,
+    acceleration: 0.03,
+    defensiveIQ: 0.02
+  },
+  SF: {
+    perimeterDefense: 0.1,
+    threePoint: 0.1,
+    drivingLayup: 0.08,
+    shotCreation: 0.08,
+    offBallMovement: 0.07,
+    midRange: 0.07,
+    defensiveIQ: 0.07,
+    offensiveIQ: 0.06,
+    strength: 0.06,
+    speed: 0.06,
+    acceleration: 0.05,
+    ballHandle: 0.05,
+    defensiveRebound: 0.04,
+    steal: 0.04,
+    freeThrow: 0.03,
+    vertical: 0.02,
+    passAccuracy: 0.02
+  },
+  PF: {
+    interiorDefense: 0.11,
+    defensiveRebound: 0.1,
+    closeShot: 0.09,
+    strength: 0.08,
+    offensiveRebound: 0.08,
+    postControl: 0.07,
+    standingDunk: 0.06,
+    defensiveIQ: 0.06,
+    midRange: 0.06,
+    threePoint: 0.05,
+    drivingLayup: 0.05,
+    block: 0.05,
+    offensiveIQ: 0.04,
+    vertical: 0.04,
+    perimeterDefense: 0.03,
+    stamina: 0.02,
+    freeThrow: 0.01
+  },
+  C: {
+    interiorDefense: 0.14,
+    defensiveRebound: 0.12,
+    closeShot: 0.1,
+    strength: 0.09,
+    block: 0.09,
+    offensiveRebound: 0.08,
+    standingDunk: 0.08,
+    postControl: 0.07,
+    defensiveIQ: 0.07,
+    offensiveIQ: 0.04,
+    vertical: 0.04,
+    freeThrow: 0.02,
+    stamina: 0.02,
+    midRange: 0.02,
+    perimeterDefense: 0.01,
+    threePoint: 0.01
+  }
 };
 
 export const simplifiedRatingsFromDetailed = (player: Player): SimplifiedPlayerRatings => ({
@@ -23,32 +111,40 @@ export const simplifiedRatingsFromDetailed = (player: Player): SimplifiedPlayerR
   stamina: roundRating(player.ratings.stamina)
 });
 
-export const calculateBsnOverallFromRatings = (ratings: PlayerRatings, position: Position): number => {
-  const simplified = {
-    insideScoring: roundRating(avg(ratings.closeShot, ratings.drivingLayup, ratings.standingDunk, ratings.postControl)),
-    midRangeScoring: roundRating(avg(ratings.midRange, ratings.shotCreation)),
-    threePointScoring: roundRating(avg(ratings.threePoint, ratings.offBallMovement)),
-    playmaking: roundRating(avg(ratings.passAccuracy, ratings.ballHandle, ratings.offensiveIQ)),
-    perimeterDefense: roundRating(ratings.perimeterDefense),
-    interiorDefense: roundRating(ratings.interiorDefense),
-    rebounding: roundRating(avg(ratings.offensiveRebound, ratings.defensiveRebound)),
-    stamina: roundRating(ratings.stamina)
-  };
-  const [inW, midW, threeW, playW, perDefW, intDefW, rebW, stamW] = positionOverallWeights[position];
+export const calculatePositionOverall = (player: Player, position: Position): number => {
+  const weights = POSITION_OVERALL_WEIGHTS[position];
+  const rawOverall = Object.entries(weights).reduce((total, [attribute, weight]) => {
+    return total + player.ratings[attribute as keyof Player['ratings']] * (weight ?? 0);
+  }, 0);
 
-  return roundRating(
-    simplified.insideScoring * inW +
-      simplified.midRangeScoring * midW +
-      simplified.threePointScoring * threeW +
-      simplified.playmaking * playW +
-      simplified.perimeterDefense * perDefW +
-      simplified.interiorDefense * intDefW +
-      simplified.rebounding * rebW +
-      simplified.stamina * stamW
-  );
+  return rawOverall;
 };
 
-export const calculatePlayerOverall = (player: Player): number => calculateBsnOverallFromRatings(player.ratings, player.position);
+const calculatePositionOverallFromRatings = (ratings: PlayerRatings, position: Position): number => {
+  const weights = POSITION_OVERALL_WEIGHTS[position];
+  return Object.entries(weights).reduce((total, [attribute, weight]) => {
+    return total + ratings[attribute as keyof PlayerRatings] * (weight ?? 0);
+  }, 0);
+};
+
+export const calculateOverall = (player: Player): number => {
+  const primaryOverall = calculatePositionOverall(player, player.position);
+
+  if (player.secondaryPositions.length === 0) {
+    return roundRating(primaryOverall);
+  }
+
+  const bestSecondaryOverall = Math.max(...player.secondaryPositions.map((position) => calculatePositionOverall(player, position)));
+  const blendedOverall = primaryOverall * 0.75 + bestSecondaryOverall * 0.25;
+
+  return roundRating(blendedOverall);
+};
+
+// Backwards-compatible export.
+export const calculateBsnOverallFromRatings = (ratings: PlayerRatings, position: Position): number =>
+  roundRating(calculatePositionOverallFromRatings(ratings, position));
+
+export const calculatePlayerOverall = (player: Player): number => calculateOverall(player);
 
 export const bsnOverallBand = (overall: number): string => {
   if (overall >= 90) return 'BSN superstar / elite import';

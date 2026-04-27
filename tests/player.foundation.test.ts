@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { initialPlayers } from '../src/data/players';
 import { initialTeams } from '../src/data/teams';
-import { bsnOverallBand, calculateBsnOverallFromRatings, calculatePlayerOverall, simplifiedRatingsFromDetailed } from '../src/domain/playerRatings';
+import {
+  POSITION_OVERALL_WEIGHTS,
+  bsnOverallBand,
+  calculateOverall,
+  calculatePositionOverall,
+  simplifiedRatingsFromDetailed
+} from '../src/domain/playerRatings';
 import { validatePlayers } from '../src/domain/playerValidation';
 import { calculateMakeProbability, simulateGame } from '../src/simulation/engine';
 
@@ -60,17 +66,22 @@ describe('player data foundation', () => {
     expect(simplified.stamina).toBe(player.ratings.stamina);
   });
 
-  it('derives BSN overall from attributes and position weighting', () => {
+  it('derives BSN overall from detailed attributes and position weighting', () => {
     const player = initialPlayers[0];
-    const derived = calculatePlayerOverall(player);
-    const manual = calculateBsnOverallFromRatings(player.ratings, player.position);
+    const derived = calculateOverall(player);
+    const manualRaw = calculatePositionOverall(player, player.position);
+    const manual = Math.round(manualRaw);
     expect(derived).toBe(manual);
 
-    const boosted = {
-      ...player.ratings,
-      threePoint: Math.min(99, player.ratings.threePoint + 5)
-    };
-    expect(calculateBsnOverallFromRatings(boosted, player.position)).toBeGreaterThanOrEqual(manual);
+    expect(
+      calculatePositionOverall(
+        {
+          ...player,
+          ratings: { ...player.ratings, threePoint: Math.min(99, player.ratings.threePoint + 5) }
+        },
+        player.position
+      )
+    ).toBeGreaterThanOrEqual(manualRaw);
   });
 
   it('uses BSN-relative display bands for overall style', () => {
@@ -84,10 +95,90 @@ describe('player data foundation', () => {
     expect(bsnOverallBand(58)).toContain('Emergency');
   });
 
-  it('does not use coaching role in rating calculation', () => {
+  it('does not change overall when role changes', () => {
     const player = initialPlayers[0];
     const swappedRole = { ...player, role: 'bench_spark' as const };
-    expect(calculatePlayerOverall(swappedRole)).toBe(calculatePlayerOverall(player));
+    expect(calculateOverall(swappedRole)).toBe(calculateOverall(player));
+  });
+
+  it('does not change overall when tier changes', () => {
+    const player = initialPlayers[0];
+    const swappedTier = { ...player, tier: 'bench' as const };
+    expect(calculateOverall(swappedTier)).toBe(calculateOverall(player));
+  });
+
+  it('does not change overall when archetype changes', () => {
+    const player = initialPlayers[0];
+    const swappedArchetype = { ...player, archetype: 'rim_protector' as const };
+    expect(calculateOverall(swappedArchetype)).toBe(calculateOverall(player));
+  });
+
+  it('does not change overall when tendencies change', () => {
+    const player = initialPlayers[0];
+    const swappedTendencies = {
+      ...player,
+      tendencies: {
+        ...player.tendencies,
+        threePointTendency: 0,
+        passTendency: 1,
+        driveTendency: 1
+      }
+    };
+    expect(calculateOverall(swappedTendencies)).toBe(calculateOverall(player));
+  });
+
+  it('does not change overall when age changes', () => {
+    const player = initialPlayers[0];
+    const older = { ...player, age: player.age + 7, birthdate: '1990-01-01' };
+    expect(calculateOverall(older)).toBe(calculateOverall(player));
+  });
+
+  it('does not change overall when import/native status changes', () => {
+    const player = initialPlayers[0];
+    const swappedImportStatus = {
+      ...player,
+      isImport: !player.isImport,
+      playerType: (player.playerType === 'import' ? 'native' : 'import') as 'native' | 'import'
+    };
+    expect(calculateOverall(swappedImportStatus)).toBe(calculateOverall(player));
+  });
+
+  it('blends overall as 75% primary and 25% best secondary position', () => {
+    const player = initialPlayers.find((p) => p.secondaryPositions.length >= 2) ?? initialPlayers[0];
+    const primaryOverall = calculatePositionOverall(player, player.position);
+    const bestSecondaryOverall = Math.max(...player.secondaryPositions.map((position) => calculatePositionOverall(player, position)));
+    const expected = Math.round(Math.max(25, Math.min(99, primaryOverall * 0.75 + bestSecondaryOverall * 0.25)));
+
+    expect(calculateOverall(player)).toBe(expected);
+  });
+
+  it('uses only primary position overall when no secondary positions are present', () => {
+    const source = initialPlayers[0];
+    const player = { ...source, secondaryPositions: [] };
+    const expected = Math.round(Math.max(25, Math.min(99, calculatePositionOverall(player, player.position))));
+    expect(calculateOverall(player)).toBe(expected);
+  });
+
+  it('rounds and clamps final overall to 25-99', () => {
+    const lowPlayer = {
+      ...initialPlayers[0],
+      ratings: Object.fromEntries(Object.keys(initialPlayers[0].ratings).map((key) => [key, 1]))
+    };
+    const highPlayer = {
+      ...initialPlayers[0],
+      ratings: Object.fromEntries(Object.keys(initialPlayers[0].ratings).map((key) => [key, 140]))
+    };
+
+    expect(calculateOverall(lowPlayer as typeof initialPlayers[0])).toBe(25);
+    expect(calculateOverall(highPlayer as typeof initialPlayers[0])).toBe(99);
+  });
+
+  it('ensures each position weight sum equals 1.0', () => {
+    const epsilon = 1e-9;
+    for (const position of Object.keys(POSITION_OVERALL_WEIGHTS)) {
+      const sum = Object.values(POSITION_OVERALL_WEIGHTS[position as keyof typeof POSITION_OVERALL_WEIGHTS]).reduce((acc, weight) => acc + (weight ?? 0), 0);
+      expect(Math.abs(sum - 1)).toBeLessThan(epsilon);
+    }
   });
 
   it('keeps tendencies as frequency controls, not direct make-effectiveness', () => {
