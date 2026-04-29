@@ -184,8 +184,9 @@ describe('player data foundation', () => {
       speedWithBall: 0.09,
       offensiveIQ: 0.09,
       threePoint: 0.08,
-      shotCreation: 0.08,
-      drivingLayup: 0.07,
+      shotCreation: 0.06,
+      drivingLayup: 0.05,
+      drawFoul: 0.04,
       perimeterDefense: 0.07,
       steal: 0.05,
       speed: 0.05,
@@ -202,7 +203,7 @@ describe('player data foundation', () => {
     expect(thousandths).toBe(1000);
   });
 
-  it('PG overall is unaffected by closeShot and affected by drivingLayup', () => {
+  it('PG overall is unaffected by closeShot and affected by drivingLayup/drawFoul', () => {
     const player = initialPlayers.find((p) => p.position === 'PG') ?? initialPlayers[0];
     const baseline = calculatePositionOverall(player, 'PG');
 
@@ -224,15 +225,25 @@ describe('player data foundation', () => {
 
     expect(closeShotChanged).toBe(baseline);
     expect(drivingLayupChanged).toBeGreaterThan(baseline);
+
+    const drawFoulChanged = calculatePositionOverall(
+      {
+        ...player,
+        ratings: { ...player.ratings, drawFoul: Math.min(99, player.ratings.drawFoul + 20) }
+      },
+      'PG'
+    );
+
+    expect(drawFoulChanged).toBeGreaterThan(baseline);
   });
 
   it('uses only intended attributes for each position formula', () => {
     const intendedAttributes = {
-      PG: ['passAccuracy', 'ballHandle', 'speedWithBall', 'offensiveIQ', 'threePoint', 'shotCreation', 'drivingLayup', 'perimeterDefense', 'steal', 'speed', 'acceleration', 'freeThrow', 'midRange', 'defensiveIQ', 'stamina'],
-      SG: ['threePoint', 'shotCreation', 'drivingLayup', 'midRange', 'offBallMovement', 'perimeterDefense', 'ballHandle', 'speedWithBall', 'offensiveIQ', 'passAccuracy', 'freeThrow', 'steal', 'speed', 'acceleration', 'defensiveIQ'],
-      SF: ['perimeterDefense', 'threePoint', 'drivingLayup', 'shotCreation', 'offBallMovement', 'midRange', 'defensiveIQ', 'offensiveIQ', 'strength', 'speed', 'acceleration', 'ballHandle', 'defensiveRebound', 'steal', 'freeThrow', 'vertical', 'passAccuracy'],
-      PF: ['interiorDefense', 'defensiveRebound', 'closeShot', 'strength', 'offensiveRebound', 'postControl', 'standingDunk', 'defensiveIQ', 'midRange', 'threePoint', 'drivingLayup', 'block', 'offensiveIQ', 'vertical', 'perimeterDefense', 'stamina', 'freeThrow'],
-      C: ['interiorDefense', 'defensiveRebound', 'closeShot', 'strength', 'block', 'offensiveRebound', 'standingDunk', 'postControl', 'defensiveIQ', 'offensiveIQ', 'vertical', 'freeThrow', 'stamina', 'midRange', 'perimeterDefense', 'threePoint']
+      PG: ['passAccuracy', 'ballHandle', 'speedWithBall', 'offensiveIQ', 'threePoint', 'shotCreation', 'drivingLayup', 'drawFoul', 'perimeterDefense', 'steal', 'speed', 'acceleration', 'freeThrow', 'midRange', 'defensiveIQ', 'stamina'],
+      SG: ['threePoint', 'shotCreation', 'drivingLayup', 'drawFoul', 'midRange', 'offBallMovement', 'perimeterDefense', 'ballHandle', 'speedWithBall', 'offensiveIQ', 'passAccuracy', 'freeThrow', 'steal', 'speed', 'acceleration', 'defensiveIQ'],
+      SF: ['perimeterDefense', 'threePoint', 'drivingLayup', 'drawFoul', 'shotCreation', 'offBallMovement', 'midRange', 'defensiveIQ', 'offensiveIQ', 'strength', 'speed', 'acceleration', 'ballHandle', 'defensiveRebound', 'steal', 'freeThrow', 'vertical', 'passAccuracy'],
+      PF: ['interiorDefense', 'defensiveRebound', 'closeShot', 'strength', 'offensiveRebound', 'postControl', 'standingDunk', 'drawFoul', 'defensiveIQ', 'midRange', 'threePoint', 'drivingLayup', 'block', 'offensiveIQ', 'vertical', 'perimeterDefense', 'stamina', 'freeThrow'],
+      C: ['interiorDefense', 'defensiveRebound', 'closeShot', 'strength', 'block', 'offensiveRebound', 'standingDunk', 'postControl', 'drawFoul', 'defensiveIQ', 'offensiveIQ', 'vertical', 'freeThrow', 'stamina', 'midRange', 'perimeterDefense', 'threePoint']
     } as const;
 
     for (const [position, expectedAttributes] of Object.entries(intendedAttributes)) {
@@ -248,6 +259,18 @@ describe('player data foundation', () => {
       const thousandths = Object.values(POSITION_OVERALL_WEIGHTS[position as keyof typeof POSITION_OVERALL_WEIGHTS]).reduce((acc, weight) => acc + Math.round((weight ?? 0) * 1000), 0);
       expect(thousandths).toBe(1000);
       expect(Math.abs(sum - 1)).toBeLessThan(epsilon);
+    }
+  });
+
+
+  it('drawFoul affects overall for every position and drawFoulTendency does not', () => {
+    for (const position of Object.keys(POSITION_OVERALL_WEIGHTS) as Array<keyof typeof POSITION_OVERALL_WEIGHTS>) {
+      const player = initialPlayers.find((p) => p.position === position) ?? initialPlayers[0];
+      const base = calculatePositionOverall(player, position);
+      const drawFoulBoosted = calculatePositionOverall({ ...player, ratings: { ...player.ratings, drawFoul: Math.min(99, player.ratings.drawFoul + 20) } }, position);
+      const tendencyChanged = calculatePositionOverall({ ...player, tendencies: { ...player.tendencies, drawFoulTendency: Math.min(1, player.tendencies.drawFoulTendency + 0.4) } }, position);
+      expect(drawFoulBoosted).toBeGreaterThan(base);
+      expect(tendencyChanged).toBe(base);
     }
   });
 
