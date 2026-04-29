@@ -494,8 +494,8 @@ const applyPossession = (
   }
 
   const foulDraw =
-    shooter.tendencies.foulDrawRate *
-    1.4 *
+    (0.006 + shooter.tendencies.foulDrawRate * 0.02) *
+    (0.9 + shooter.player.ratings.drawFoul / 100) *
     leagueRules.simulation.foulRateFactor *
     bonusMultiplier *
     (1 + shooter.fatigue * 0.15);

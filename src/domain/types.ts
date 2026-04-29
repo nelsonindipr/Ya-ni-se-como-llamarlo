@@ -59,6 +59,7 @@ export type PlayerRatings = {
   midRange: number;
   threePoint: number;
   freeThrow: number;
+  drawFoul: number;
   shotCreation: number;
   offBallMovement: number;
   passAccuracy: number;

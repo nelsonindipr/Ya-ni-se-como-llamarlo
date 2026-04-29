@@ -2,6 +2,11 @@ import type { Player, Team } from './types';
 
 const MIN_RATING = 25;
 const MAX_RATING = 99;
+const REQUIRED_PLAYER_RATINGS = [
+  'closeShot', 'drivingLayup', 'drivingDunk', 'standingDunk', 'postControl', 'midRange', 'threePoint', 'freeThrow', 'drawFoul',
+  'shotCreation', 'offBallMovement', 'passAccuracy', 'ballHandle', 'speedWithBall', 'interiorDefense', 'perimeterDefense', 'steal', 'block',
+  'offensiveRebound', 'defensiveRebound', 'speed', 'acceleration', 'strength', 'vertical', 'stamina', 'offensiveIQ', 'defensiveIQ'
+] as const;
 
 const isNonEmpty = (value: string): boolean => value.trim().length > 0;
 
@@ -52,6 +57,12 @@ export const validatePlayer = (player: Player, validTeamIds: Set<string>): Playe
   for (const [ratingName, ratingValue] of Object.entries(player.ratings)) {
     if (!isValidRating(ratingValue)) {
       errors.push(`Player ${player.id} rating ${ratingName} is out of range (${ratingValue}).`);
+    }
+  }
+
+  for (const requiredRating of REQUIRED_PLAYER_RATINGS) {
+    if (!(requiredRating in player.ratings)) {
+      errors.push(`Player ${player.id} is missing required rating ${requiredRating}.`);
     }
   }
 

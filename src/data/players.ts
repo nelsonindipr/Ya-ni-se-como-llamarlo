@@ -77,6 +77,7 @@ const buildRatings = (position: Position, tier: PlayerTier, archetype: PlayerArc
     midRange: clamp(base),
     threePoint: clamp(base),
     freeThrow: clamp(base + 1),
+    drawFoul: clamp(base),
     shotCreation: clamp(base),
     offBallMovement: clamp(base),
     passAccuracy: clamp(base),
