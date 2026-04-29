@@ -1,4 +1,5 @@
 import type { Player, PlayerArchetype, PlayerRatings, PlayerRole, PlayerTendencies, PlayerTier, Position } from '../domain/types';
+import { playerRatingOverrides } from './playerRatingOverrides';
 
 const SOURCE_NOTE = 'BSN 2026 roster document updated April 23, 2026';
 
@@ -460,8 +461,14 @@ export const initialPlayers: Player[] = parsedPlayers.map((entry, index) => {
   if (importTag) notes.push(`Refuerzo flag had suffix (*): ${entry.refuerzo}`);
   if (isImport && !activeImport) notes.push('Possible extra import beyond 3 active slots; marked reserve for review.');
 
+  const playerId = `${entry.teamId}-${String(index + 1).padStart(3, '0')}`;
+  const override = playerRatingOverrides[playerId] ?? playerRatingOverrides[entry.displayName];
+  if (override?.ratingSource) notes.push(`Rating override source: ${override.ratingSource}`);
+  if (override?.ratingConfidence) notes.push(`Rating override confidence: ${override.ratingConfidence}`);
+  if (override?.ratingNotes?.length) notes.push(...override.ratingNotes);
+
   return {
-    id: `${entry.teamId}-${String(index + 1).padStart(3, '0')}`,
+    id: playerId,
     teamId: entry.teamId,
     name: entry.displayName,
     firstName,
@@ -484,8 +491,8 @@ export const initialPlayers: Player[] = parsedPlayers.map((entry, index) => {
     role: profile.role,
     tier,
     archetype,
-    tendencies: tendenciesByArchetype[archetype],
-    ratings: buildRatings(position, tier, archetype, entry.age, isImport),
+    tendencies: override?.tendencies ?? tendenciesByArchetype[archetype],
+    ratings: override?.ratings ?? buildRatings(position, tier, archetype, entry.age, isImport),
     minutesTarget: profile.minutesTarget,
     playerType,
     contractStatus: 'active',

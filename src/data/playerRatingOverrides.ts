@@ -1,0 +1,41 @@
+import type { PlayerRatings, PlayerTendencies } from '../domain/types';
+
+type PlayerRatingOverride = {
+  ratings: PlayerRatings;
+  tendencies?: PlayerTendencies;
+  ratingSource?: string;
+  ratingConfidence?: 'high' | 'medium' | 'low';
+  ratingNotes?: string[];
+};
+
+export const playerRatingOverrides: Record<string, PlayerRatingOverride> = {
+  'Ángel Rodríguez': {
+    ratings: { closeShot: 79, drivingLayup: 82, drivingDunk: 45, standingDunk: 30, postControl: 42, midRange: 80, threePoint: 85, freeThrow: 84, shotCreation: 84, offBallMovement: 81, passAccuracy: 88, ballHandle: 86, speedWithBall: 85, interiorDefense: 39, perimeterDefense: 75, steal: 78, block: 30, offensiveRebound: 35, defensiveRebound: 44, speed: 84, acceleration: 86, strength: 50, vertical: 64, stamina: 88, offensiveIQ: 86, defensiveIQ: 77 },
+    ratingSource: 'Santurce workbook v1', ratingConfidence: 'high', ratingNotes: ['Primary creator calibration.']
+  },
+  'Walter Hodge': {
+    ratings: { closeShot: 75, drivingLayup: 78, drivingDunk: 35, standingDunk: 25, postControl: 38, midRange: 79, threePoint: 83, freeThrow: 87, shotCreation: 82, offBallMovement: 79, passAccuracy: 84, ballHandle: 83, speedWithBall: 82, interiorDefense: 35, perimeterDefense: 70, steal: 72, block: 25, offensiveRebound: 30, defensiveRebound: 40, speed: 80, acceleration: 82, strength: 46, vertical: 58, stamina: 84, offensiveIQ: 84, defensiveIQ: 73 },
+    ratingSource: 'Santurce workbook v1', ratingConfidence: 'medium'
+  },
+  'Jordan Howard': {
+    ratings: { closeShot: 74, drivingLayup: 79, drivingDunk: 40, standingDunk: 25, postControl: 35, midRange: 80, threePoint: 86, freeThrow: 89, shotCreation: 83, offBallMovement: 84, passAccuracy: 78, ballHandle: 80, speedWithBall: 79, interiorDefense: 34, perimeterDefense: 68, steal: 69, block: 25, offensiveRebound: 31, defensiveRebound: 38, speed: 78, acceleration: 80, strength: 44, vertical: 56, stamina: 83, offensiveIQ: 84, defensiveIQ: 70 },
+    ratingSource: 'Santurce workbook v1', ratingConfidence: 'high'
+  },
+  'Emmanuel Maldonado': { ratings: { closeShot: 68, drivingLayup: 71, drivingDunk: 55, standingDunk: 40, postControl: 45, midRange: 70, threePoint: 73, freeThrow: 75, shotCreation: 70, offBallMovement: 72, passAccuracy: 68, ballHandle: 69, speedWithBall: 70, interiorDefense: 46, perimeterDefense: 67, steal: 64, block: 38, offensiveRebound: 45, defensiveRebound: 50, speed: 74, acceleration: 75, strength: 62, vertical: 70, stamina: 79, offensiveIQ: 71, defensiveIQ: 69 }, ratingSource: 'Santurce workbook v1', ratingConfidence: 'medium' },
+  'David Huertas': { ratings: { closeShot: 77, drivingLayup: 76, drivingDunk: 48, standingDunk: 34, postControl: 52, midRange: 84, threePoint: 87, freeThrow: 88, shotCreation: 79, offBallMovement: 85, passAccuracy: 74, ballHandle: 73, speedWithBall: 70, interiorDefense: 42, perimeterDefense: 69, steal: 66, block: 30, offensiveRebound: 40, defensiveRebound: 47, speed: 68, acceleration: 67, strength: 56, vertical: 58, stamina: 80, offensiveIQ: 86, defensiveIQ: 72 }, ratingSource: 'Santurce workbook v1', ratingConfidence: 'high' },
+  'Corey McKeithan': { ratings: { closeShot: 70, drivingLayup: 74, drivingDunk: 36, standingDunk: 25, postControl: 36, midRange: 74, threePoint: 79, freeThrow: 82, shotCreation: 77, offBallMovement: 76, passAccuracy: 74, ballHandle: 77, speedWithBall: 76, interiorDefense: 34, perimeterDefense: 66, steal: 68, block: 25, offensiveRebound: 30, defensiveRebound: 37, speed: 76, acceleration: 78, strength: 42, vertical: 54, stamina: 80, offensiveIQ: 76, defensiveIQ: 68 }, ratingSource: 'Santurce workbook v1', ratingConfidence: 'medium' },
+  'Malik Beasley': { ratings: { closeShot: 82, drivingLayup: 84, drivingDunk: 72, standingDunk: 45, postControl: 50, midRange: 83, threePoint: 90, freeThrow: 86, shotCreation: 86, offBallMovement: 87, passAccuracy: 73, ballHandle: 81, speedWithBall: 80, interiorDefense: 40, perimeterDefense: 74, steal: 71, block: 34, offensiveRebound: 42, defensiveRebound: 49, speed: 82, acceleration: 84, strength: 62, vertical: 78, stamina: 86, offensiveIQ: 86, defensiveIQ: 74 }, ratingSource: 'Santurce workbook v1', ratingConfidence: 'high' },
+  'Ángel Matías': { ratings: { closeShot: 73, drivingLayup: 72, drivingDunk: 62, standingDunk: 50, postControl: 56, midRange: 74, threePoint: 78, freeThrow: 76, shotCreation: 69, offBallMovement: 74, passAccuracy: 66, ballHandle: 65, speedWithBall: 64, interiorDefense: 57, perimeterDefense: 70, steal: 65, block: 45, offensiveRebound: 53, defensiveRebound: 57, speed: 68, acceleration: 69, strength: 70, vertical: 72, stamina: 82, offensiveIQ: 73, defensiveIQ: 74 }, ratingSource: 'Santurce workbook v1', ratingConfidence: 'medium' },
+  'Isaiah Piñeiro': { ratings: { closeShot: 78, drivingLayup: 79, drivingDunk: 68, standingDunk: 52, postControl: 60, midRange: 79, threePoint: 80, freeThrow: 81, shotCreation: 77, offBallMovement: 79, passAccuracy: 72, ballHandle: 73, speedWithBall: 72, interiorDefense: 60, perimeterDefense: 76, steal: 72, block: 48, offensiveRebound: 58, defensiveRebound: 66, speed: 74, acceleration: 75, strength: 72, vertical: 75, stamina: 84, offensiveIQ: 80, defensiveIQ: 78 }, ratingSource: 'Santurce workbook v1', ratingConfidence: 'high' },
+  'Tyler Polo': { ratings: { closeShot: 69, drivingLayup: 68, drivingDunk: 54, standingDunk: 45, postControl: 54, midRange: 72, threePoint: 74, freeThrow: 77, shotCreation: 65, offBallMovement: 70, passAccuracy: 64, ballHandle: 62, speedWithBall: 61, interiorDefense: 54, perimeterDefense: 66, steal: 61, block: 40, offensiveRebound: 50, defensiveRebound: 55, speed: 64, acceleration: 63, strength: 66, vertical: 64, stamina: 78, offensiveIQ: 70, defensiveIQ: 70 }, ratingSource: 'Santurce workbook v1', ratingConfidence: 'low' },
+  'Xavier Zambrana': { ratings: { closeShot: 71, drivingLayup: 70, drivingDunk: 50, standingDunk: 40, postControl: 50, midRange: 73, threePoint: 77, freeThrow: 79, shotCreation: 68, offBallMovement: 72, passAccuracy: 67, ballHandle: 66, speedWithBall: 65, interiorDefense: 52, perimeterDefense: 68, steal: 63, block: 38, offensiveRebound: 47, defensiveRebound: 53, speed: 66, acceleration: 66, strength: 64, vertical: 62, stamina: 79, offensiveIQ: 72, defensiveIQ: 71 }, ratingSource: 'Santurce workbook v1', ratingConfidence: 'low' },
+  'Devon Collier': { ratings: { closeShot: 76, drivingLayup: 72, drivingDunk: 65, standingDunk: 70, postControl: 72, midRange: 69, threePoint: 58, freeThrow: 71, shotCreation: 60, offBallMovement: 63, passAccuracy: 60, ballHandle: 58, speedWithBall: 56, interiorDefense: 72, perimeterDefense: 60, steal: 58, block: 66, offensiveRebound: 72, defensiveRebound: 75, speed: 62, acceleration: 60, strength: 78, vertical: 68, stamina: 80, offensiveIQ: 72, defensiveIQ: 76 }, ratingSource: 'Santurce workbook v1', ratingConfidence: 'high' },
+  'Davon Jefferson': { ratings: { closeShot: 80, drivingLayup: 76, drivingDunk: 70, standingDunk: 75, postControl: 78, midRange: 72, threePoint: 60, freeThrow: 73, shotCreation: 66, offBallMovement: 67, passAccuracy: 62, ballHandle: 60, speedWithBall: 58, interiorDefense: 70, perimeterDefense: 61, steal: 57, block: 64, offensiveRebound: 70, defensiveRebound: 73, speed: 61, acceleration: 59, strength: 80, vertical: 67, stamina: 78, offensiveIQ: 75, defensiveIQ: 74 }, ratingSource: 'Santurce workbook v1', ratingConfidence: 'medium' },
+  'Viktor Lakhin': {
+    ratings: { closeShot: 79, drivingLayup: 70, drivingDunk: 68, standingDunk: 78, postControl: 77, midRange: 68, threePoint: 62, freeThrow: 74, shotCreation: 61, offBallMovement: 60, passAccuracy: 61, ballHandle: 57, speedWithBall: 55, interiorDefense: 78, perimeterDefense: 58, steal: 56, block: 76, offensiveRebound: 77, defensiveRebound: 80, speed: 60, acceleration: 58, strength: 82, vertical: 69, stamina: 79, offensiveIQ: 74, defensiveIQ: 79 },
+    tendencies: { threePointTendency: 0.12, midRangeTendency: 0.16, driveTendency: 0.18, postUpTendency: 0.33, passTendency: 0.2, drawFoulTendency: 0.17, crashOffGlassTendency: 0.3 },
+    ratingSource: 'Santurce workbook v1', ratingConfidence: 'high', ratingNotes: ['Workbook includes custom tendencies profile.']
+  }
+};
+
+export type { PlayerRatingOverride };
