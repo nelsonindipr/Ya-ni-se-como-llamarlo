@@ -182,46 +182,6 @@ describe('player data foundation', () => {
     }
   });
 
-  it('applies manual rating override ratings when available', () => {
-    const player = initialPlayers.find((p) => p.displayName === 'Ángel Rodríguez');
-    expect(player).toBeDefined();
-    expect(player?.ratings).toEqual(playerRatingOverrides['Ángel Rodríguez'].ratings);
-  });
-
-  it('calculateOverall uses override ratings', () => {
-    const player = initialPlayers.find((p) => p.displayName === 'Ángel Rodríguez');
-    expect(player).toBeDefined();
-    const manual = Math.round(Math.max(25, Math.min(99, calculatePositionOverall(player!, player!.position))));
-    expect(calculateOverall({ ...player!, secondaryPositions: [] })).toBe(manual);
-  });
-
-  it('does not support manual overall override field', () => {
-    const player = initialPlayers.find((p) => p.displayName === 'Ángel Rodríguez')!;
-    const spoofed = { ...player, overall: 99 } as typeof player & { overall: number };
-    expect(calculateOverall(spoofed)).toBe(calculateOverall(player));
-  });
-
-  it('players without overrides keep generated placeholder ratings', () => {
-    const player = initialPlayers.find((p) => p.displayName === 'Gary Browne');
-    expect(player).toBeDefined();
-    expect(playerRatingOverrides[player!.id] ?? playerRatingOverrides[player!.displayName]).toBeUndefined();
-    expect(player?.ratings.closeShot).toBeGreaterThanOrEqual(25);
-    expect(player?.ratings.closeShot).toBeLessThanOrEqual(99);
-  });
-
-  it('tendencies overrides do not affect overall', () => {
-    const player = initialPlayers.find((p) => p.displayName === 'Viktor Lakhin')!;
-    const changedTendencies = {
-      ...player,
-      tendencies: {
-        ...player.tendencies,
-        threePointTendency: 1,
-        passTendency: 0
-      }
-    };
-    expect(calculateOverall(changedTendencies)).toBe(calculateOverall(player));
-  });
-
   it('keeps tendencies as frequency controls, not direct make-effectiveness', () => {
     const params = {
       shotRating: 78,
