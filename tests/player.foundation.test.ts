@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { initialPlayers } from '../src/data/players';
+import { playerRatingOverrides } from '../src/data/playerRatingOverrides';
 import { initialTeams } from '../src/data/teams';
 import {
   POSITION_OVERALL_WEIGHTS,
