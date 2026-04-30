@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { initialPlayers } from '../src/data/players';
-import { playerRatingOverrides } from '../src/data/playerRatingOverrides';
 import { initialTeams } from '../src/data/teams';
 import {
   POSITION_OVERALL_WEIGHTS,
@@ -215,7 +214,7 @@ describe('player data foundation', () => {
     const comparisons: Record<keyof typeof POSITION_OVERALL_WEIGHTS, [keyof typeof initialPlayers[0]['ratings'], keyof typeof initialPlayers[0]['ratings']]> = {
       PG: ['passAccuracy', 'standingDunk'],
       SG: ['threePoint', 'postControl'],
-      SF: ['perimeterDefense', 'speedWithBall'],
+      SF: ['perimeterDefense', 'standingDunk'],
       PF: ['interiorDefense', 'ballHandle'],
       C: ['interiorDefense', 'ballHandle']
     };
@@ -261,5 +260,12 @@ describe('player data foundation', () => {
     expect(result.home.score).toBeGreaterThan(0);
     expect(result.away.score).toBeGreaterThan(0);
     expect(result.home.players.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it('player ratings schema has no speedWithBall field and includes clutch/hustle', () => {
+    const ratings = initialPlayers[0].ratings as Record<string, number>;
+    expect('speedWithBall' in ratings).toBe(false);
+    expect('clutch' in ratings).toBe(true);
+    expect('hustle' in ratings).toBe(true);
   });
 });

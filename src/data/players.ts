@@ -1,5 +1,6 @@
 import type { Player, PlayerArchetype, PlayerRatings, PlayerRole, PlayerTendencies, PlayerTier, Position } from '../domain/types';
 import { playerRatingOverrides } from './playerRatingOverrides';
+import { speedWithBallProxyFromRatings } from '../domain/playerRatings';
 
 const SOURCE_NOTE = 'BSN 2026 roster document updated April 23, 2026';
 
@@ -38,10 +39,10 @@ const importMod = (isImport: boolean): number => (isImport ? 2 : 0);
 
 const archetypeMods: Record<PlayerArchetype, Partial<Record<keyof PlayerRatings, number>>> = {
   balanced_guard: { passAccuracy: 2, ballHandle: 2, speed: 1, acceleration: 1 },
-  playmaker: { passAccuracy: 6, ballHandle: 4, speedWithBall: 3, shotCreation: 2, offensiveIQ: 3 },
+  playmaker: { passAccuracy: 6, ballHandle: 4, shotCreation: 2, offensiveIQ: 3 },
   movement_shooter: { threePoint: 6, offBallMovement: 5, midRange: 2, drivingDunk: -2 },
   shot_creator: { shotCreation: 5, ballHandle: 3, midRange: 3, drivingLayup: 2, offensiveIQ: 2 },
-  slasher: { drivingLayup: 5, drivingDunk: 4, speedWithBall: 3, freeThrow: 2, threePoint: -2 },
+  slasher: { drivingLayup: 5, drivingDunk: 4, freeThrow: 2, threePoint: -2 },
   '3_and_d_wing': { threePoint: 4, perimeterDefense: 5, steal: 3, offBallMovement: 2 },
   versatile_forward: { closeShot: 3, midRange: 3, perimeterDefense: 2, interiorDefense: 2, offensiveIQ: 2 },
   stretch_big: { threePoint: 5, midRange: 3, standingDunk: -2, postControl: -1 },
@@ -52,7 +53,7 @@ const archetypeMods: Record<PlayerArchetype, Partial<Record<keyof PlayerRatings,
 };
 
 const positionMods: Record<Position, Partial<Record<keyof PlayerRatings, number>>> = {
-  PG: { drivingLayup: 2, passAccuracy: 3, ballHandle: 4, speedWithBall: 3, speed: 4, acceleration: 4, interiorDefense: -3, block: -4, strength: -3 },
+  PG: { drivingLayup: 2, passAccuracy: 3, ballHandle: 4, speed: 4, acceleration: 4, interiorDefense: -3, block: -4, strength: -3 },
   SG: { threePoint: 2, shotCreation: 2, perimeterDefense: 1, speed: 2, acceleration: 2, interiorDefense: -2, block: -3 },
   SF: { closeShot: 1, drivingDunk: 2, perimeterDefense: 2, defensiveRebound: 1, strength: 1 },
   PF: { closeShot: 3, standingDunk: 3, postControl: 3, interiorDefense: 3, offensiveRebound: 3, defensiveRebound: 3, speed: -1, acceleration: -1 },
@@ -82,7 +83,8 @@ const buildRatings = (position: Position, tier: PlayerTier, archetype: PlayerArc
     offBallMovement: clamp(base),
     passAccuracy: clamp(base),
     ballHandle: clamp(base),
-    speedWithBall: clamp(base),
+    clutch: clamp(base),
+    hustle: clamp(base),
     interiorDefense: clamp(base),
     perimeterDefense: clamp(base),
     steal: clamp(base - 1),
@@ -439,6 +441,24 @@ for (const rawLine of rosterDocument.split('\n')) {
 
 const importCountByTeam: Record<string, number> = {};
 
+
+const normalizeRatings = (ratings: Partial<PlayerRatings> & { speedWithBall?: number }, fallback: PlayerRatings): PlayerRatings => {
+  const merged = { ...fallback, ...ratings } as PlayerRatings & { speedWithBall?: number };
+  const legacySpeedWithBall = ratings.speedWithBall;
+  if (legacySpeedWithBall !== undefined) {
+    const delta = legacySpeedWithBall - speedWithBallProxyFromRatings(merged);
+    merged.speed = clamp(merged.speed + delta * 0.28);
+    merged.acceleration = clamp(merged.acceleration + delta * 0.22);
+    merged.ballHandle = clamp(merged.ballHandle + delta * 0.22);
+    merged.drivingLayup = clamp(merged.drivingLayup + delta * 0.12);
+    merged.shotCreation = clamp(merged.shotCreation + delta * 0.1);
+    merged.drawFoul = clamp(merged.drawFoul + delta * 0.06);
+  }
+  const clutch = merged.clutch ?? merged.offensiveIQ;
+  const hustle = merged.hustle ?? Math.round((merged.stamina + merged.defensiveRebound + merged.defensiveIQ) / 3);
+  return { ...merged, clutch: clamp(clutch), hustle: clamp(hustle) };
+};
+
 const splitName = (displayName: string): { firstName: string; lastName: string } => {
   const chunks = displayName.replace(/[‘’]/g, "'").split(' ').filter(Boolean);
   if (chunks.length === 1) return { firstName: chunks[0], lastName: chunks[0] };
@@ -493,7 +513,7 @@ export const initialPlayers: Player[] = parsedPlayers.map((entry, index) => {
     tier,
     archetype,
     tendencies: override?.tendencies ?? tendenciesByArchetype[archetype],
-    ratings: override?.ratings ?? buildRatings(position, tier, archetype, entry.age, isImport),
+    ratings: normalizeRatings((override?.ratings ?? {}) as Partial<PlayerRatings> & { speedWithBall?: number }, buildRatings(position, tier, archetype, entry.age, isImport)),
     minutesTarget: profile.minutesTarget,
     playerType,
     contractStatus: 'active',

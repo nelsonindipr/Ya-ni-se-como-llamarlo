@@ -1,5 +1,5 @@
 import type { AvailabilityStatus, GameResult, Player, PlayerBoxScore, ScheduledGame, SimplifiedPlayerRatings, Team } from '../domain/types';
-import { calculatePlayerOverall, legacyTendenciesFromPlayer, simplifiedRatingsFromDetailed } from '../domain/playerRatings';
+import { calculatePlayerOverall, legacyTendenciesFromPlayer, simplifiedRatingsFromDetailed, speedWithBallProxyFromRatings } from '../domain/playerRatings';
 import { leagueRules } from '../domain/rules';
 import { createSeededRandom, randomInt, type RandomSource } from './random';
 
@@ -51,6 +51,9 @@ type TeamSimState = {
 };
 
 const calcOverall = (player: Player): number => calculatePlayerOverall(player);
+
+const isPressureContext = (quarter: number, secondsLeftInQuarter: number, scoreMargin: number): boolean =>
+  (quarter === 4 && secondsLeftInQuarter <= 180 && Math.abs(scoreMargin) <= 8) || (quarter > 4 && Math.abs(scoreMargin) <= 10);
 
 export const calculateMakeProbability = (params: {
   shotRating: number;
@@ -346,7 +349,7 @@ const applyPossession = (
     offLineup,
     (p) => {
       const creatorBoost = p.player.role === 'primary_ball_handler' || p.player.role === 'wing_scorer' ? 1.18 : 1;
-      const shotSkill = p.simpleRatings.insideScoring * 0.45 + p.simpleRatings.midRangeScoring * 0.25 + p.simpleRatings.threePointScoring * 0.3;
+      const shotSkill = p.player.ratings.closeShot * 0.2 + p.player.ratings.drivingLayup * 0.2 + p.player.ratings.midRange * 0.2 + p.player.ratings.threePoint * 0.2 + p.player.ratings.shotCreation * 0.2 + speedWithBallProxyFromRatings(p.player.ratings) * 0.05;
       const minuteBandBoost = roleBand(p) === 'star' ? 1.15 : roleBand(p) === 'bench' ? 0.85 : 1;
       return shotSkill * creatorBoost * minuteBandBoost * (1 - p.fatigue * 0.55);
     },
@@ -356,7 +359,7 @@ const applyPossession = (
   const shooterRow = offense.box.find((b) => b.playerId === shooter.player.id);
   if (!shooterRow) return 0;
 
-  const passingValue = offLineup.reduce((sum, p) => sum + p.simpleRatings.playmaking * (1 - p.fatigue * 0.45), 0) / offLineup.length;
+  const passingValue = offLineup.reduce((sum, p) => sum + (p.player.ratings.passAccuracy * 0.4 + p.player.ratings.ballHandle * 0.35 + p.player.ratings.offensiveIQ * 0.25) * (1 - p.fatigue * 0.45), 0) / offLineup.length;
   const passRateValue = offLineup.reduce((sum, p) => sum + p.tendencies.passRate, 0) / offLineup.length;
   const turnoverProb = Math.max(
     0.06,
@@ -418,14 +421,14 @@ const applyPossession = (
       if (lastFtMissed) {
         const ftOffRebChance = Math.max(0.08, Math.min(0.2, 0.12 * leagueRules.simulation.orbFactor));
         if (rng() < ftOffRebChance) {
-          const offRebounder = chooseByWeight(offLineup, (p) => p.simpleRatings.rebounding * (1 - p.fatigue * 0.35), rng);
+          const offRebounder = chooseByWeight(offLineup, (p) => (p.player.ratings.offensiveRebound * 0.45 + p.player.ratings.defensiveRebound * 0.35 + p.player.ratings.vertical * 0.1 + p.player.ratings.strength * 0.1 + p.player.ratings.hustle * 0.2) * (1 - p.fatigue * 0.35), rng);
           const offRebRow = offense.box.find((b) => b.playerId === offRebounder.player.id);
           if (offRebRow) {
             offRebRow.rebounds += 1;
             offRebRow.offensiveRebounds += 1;
           }
         } else {
-          const defRebounder = chooseByWeight(defLineup, (p) => p.simpleRatings.rebounding * (1 - p.fatigue * 0.35), rng);
+          const defRebounder = chooseByWeight(defLineup, (p) => (p.player.ratings.offensiveRebound * 0.45 + p.player.ratings.defensiveRebound * 0.35 + p.player.ratings.vertical * 0.1 + p.player.ratings.strength * 0.1 + p.player.ratings.hustle * 0.2) * (1 - p.fatigue * 0.35), rng);
           const defRebRow = defense.box.find((b) => b.playerId === defRebounder.player.id);
           if (defRebRow) {
             defRebRow.rebounds += 1;
@@ -498,7 +501,8 @@ const applyPossession = (
     (0.9 + shooter.player.ratings.drawFoul / 100) *
     leagueRules.simulation.foulRateFactor *
     bonusMultiplier *
-    (1 + shooter.fatigue * 0.15);
+    (1 + shooter.fatigue * 0.15) *
+    (isPressureContext(quarter, secondsLeftInQuarter, marginForOffense) ? 1 + (shooter.player.ratings.clutch - 50) / 500 : 1);
 
   if (rng() < foulDraw) {
     const defender = chooseByWeight(defLineup, (p) => p.simpleRatings.interiorDefense + p.simpleRatings.perimeterDefense, rng);
@@ -537,14 +541,14 @@ const applyPossession = (
     if (lastFtMissed) {
       const ftOffRebChance = Math.max(0.08, Math.min(0.2, 0.12 * leagueRules.simulation.orbFactor));
       if (rng() < ftOffRebChance) {
-        const offRebounder = chooseByWeight(offLineup, (p) => p.simpleRatings.rebounding * (1 - p.fatigue * 0.35), rng);
+        const offRebounder = chooseByWeight(offLineup, (p) => (p.player.ratings.offensiveRebound * 0.45 + p.player.ratings.defensiveRebound * 0.35 + p.player.ratings.vertical * 0.1 + p.player.ratings.strength * 0.1 + p.player.ratings.hustle * 0.2) * (1 - p.fatigue * 0.35), rng);
         const offRebRow = offense.box.find((b) => b.playerId === offRebounder.player.id);
         if (offRebRow) {
           offRebRow.rebounds += 1;
           offRebRow.offensiveRebounds += 1;
         }
       } else {
-        const defRebounder = chooseByWeight(defLineup, (p) => p.simpleRatings.rebounding * (1 - p.fatigue * 0.35), rng);
+        const defRebounder = chooseByWeight(defLineup, (p) => (p.player.ratings.offensiveRebound * 0.45 + p.player.ratings.defensiveRebound * 0.35 + p.player.ratings.vertical * 0.1 + p.player.ratings.strength * 0.1 + p.player.ratings.hustle * 0.2) * (1 - p.fatigue * 0.35), rng);
         const defRebRow = defense.box.find((b) => b.playerId === defRebounder.player.id);
         if (defRebRow) {
           defRebRow.rebounds += 1;
@@ -557,9 +561,9 @@ const applyPossession = (
   }
 
   const offRebStrength =
-    offLineup.reduce((sum, p) => sum + p.simpleRatings.rebounding * (1 - p.fatigue * 0.35), 0) / offLineup.length;
+    offLineup.reduce((sum, p) => sum + (p.player.ratings.offensiveRebound * 0.45 + p.player.ratings.defensiveRebound * 0.35 + p.player.ratings.vertical * 0.1 + p.player.ratings.strength * 0.1 + p.player.ratings.hustle * 0.2) * (1 - p.fatigue * 0.35), 0) / offLineup.length;
   const defRebStrength =
-    defLineup.reduce((sum, p) => sum + p.simpleRatings.rebounding * (1 - p.fatigue * 0.35), 0) / defLineup.length;
+    defLineup.reduce((sum, p) => sum + (p.player.ratings.offensiveRebound * 0.45 + p.player.ratings.defensiveRebound * 0.35 + p.player.ratings.vertical * 0.1 + p.player.ratings.strength * 0.1 + p.player.ratings.hustle * 0.2) * (1 - p.fatigue * 0.35), 0) / defLineup.length;
 
   const blockChance = Math.max(
     0.05,
@@ -576,7 +580,7 @@ const applyPossession = (
     Math.min(0.42, (0.24 + (offRebStrength - defRebStrength) * 0.0022) * leagueRules.simulation.orbFactor)
   );
   if (rng() < offRebChance) {
-    const rebounder = chooseByWeight(offLineup, (p) => p.simpleRatings.rebounding * (1 - p.fatigue * 0.4), rng);
+    const rebounder = chooseByWeight(offLineup, (p) => (p.player.ratings.offensiveRebound * 0.45 + p.player.ratings.defensiveRebound * 0.35 + p.player.ratings.vertical * 0.1 + p.player.ratings.strength * 0.1 + p.player.ratings.hustle * 0.2) * (1 - p.fatigue * 0.4), rng);
     const rebRow = offense.box.find((b) => b.playerId === rebounder.player.id);
     if (rebRow) {
       rebRow.rebounds += 1;
@@ -585,7 +589,7 @@ const applyPossession = (
     return applyPossession(offense, defense, quarter, secondsLeftInQuarter, marginForOffense, offenseBoost, rng);
   }
 
-  const defensiveRebounder = chooseByWeight(defLineup, (p) => p.simpleRatings.rebounding * (1 - p.fatigue * 0.4), rng);
+  const defensiveRebounder = chooseByWeight(defLineup, (p) => (p.player.ratings.offensiveRebound * 0.45 + p.player.ratings.defensiveRebound * 0.35 + p.player.ratings.vertical * 0.1 + p.player.ratings.strength * 0.1 + p.player.ratings.hustle * 0.2) * (1 - p.fatigue * 0.4), rng);
   const defRebRow = defense.box.find((b) => b.playerId === defensiveRebounder.player.id);
   if (defRebRow) {
     defRebRow.rebounds += 1;

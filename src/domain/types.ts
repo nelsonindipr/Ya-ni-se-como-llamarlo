@@ -64,7 +64,6 @@ export type PlayerRatings = {
   offBallMovement: number;
   passAccuracy: number;
   ballHandle: number;
-  speedWithBall: number;
   interiorDefense: number;
   perimeterDefense: number;
   steal: number;
@@ -78,6 +77,8 @@ export type PlayerRatings = {
   stamina: number;
   offensiveIQ: number;
   defensiveIQ: number;
+  clutch: number;
+  hustle: number;
 };
 
 export type SimplifiedPlayerRatings = {

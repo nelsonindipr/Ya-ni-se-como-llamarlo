@@ -4,8 +4,8 @@ const MIN_RATING = 25;
 const MAX_RATING = 99;
 const REQUIRED_PLAYER_RATINGS = [
   'closeShot', 'drivingLayup', 'drivingDunk', 'standingDunk', 'postControl', 'midRange', 'threePoint', 'freeThrow', 'drawFoul',
-  'shotCreation', 'offBallMovement', 'passAccuracy', 'ballHandle', 'speedWithBall', 'interiorDefense', 'perimeterDefense', 'steal', 'block',
-  'offensiveRebound', 'defensiveRebound', 'speed', 'acceleration', 'strength', 'vertical', 'stamina', 'offensiveIQ', 'defensiveIQ'
+  'shotCreation', 'offBallMovement', 'passAccuracy', 'ballHandle', 'interiorDefense', 'perimeterDefense', 'steal', 'block',
+  'offensiveRebound', 'defensiveRebound', 'speed', 'acceleration', 'strength', 'vertical', 'stamina', 'offensiveIQ', 'defensiveIQ', 'clutch', 'hustle'
 ] as const;
 
 const isNonEmpty = (value: string): boolean => value.trim().length > 0;
