@@ -36,7 +36,8 @@ export const PlayerProfile = ({ player, teamName, regularStats, playoffStats, ga
         ['Off-Ball Movement', player.ratings.offBallMovement],
         ['Pass Accuracy', player.ratings.passAccuracy],
         ['Ball Handle', player.ratings.ballHandle],
-        ['Speed With Ball', player.ratings.speedWithBall]
+        ['Clutch', player.ratings.clutch],
+        ['Hustle', player.ratings.hustle]
       ]
     },
     {
