@@ -4,6 +4,8 @@ import { initialTeams } from '../src/data/teams';
 import {
   POSITION_OVERALL_WEIGHTS,
   bsnOverallBand,
+  calculateAllPositionOveralls,
+  calculateEffectiveOverall,
   calculateOverall,
   calculatePositionOverall,
   simplifiedRatingsFromDetailed
@@ -143,20 +145,53 @@ describe('player data foundation', () => {
     expect(calculateOverall(swappedImportStatus)).toBe(calculateOverall(player));
   });
 
-  it('blends overall as 75% primary and 25% best secondary position', () => {
+  it('uses only natural/profile position for overall', () => {
     const player = initialPlayers.find((p) => p.secondaryPositions.length >= 2) ?? initialPlayers[0];
-    const primaryOverall = calculatePositionOverall(player, player.position);
-    const bestSecondaryOverall = Math.max(...player.secondaryPositions.map((position) => calculatePositionOverall(player, position)));
-    const expected = Math.round(Math.max(25, Math.min(99, primaryOverall * 0.75 + bestSecondaryOverall * 0.25)));
-
+    const expected = Math.round(Math.max(25, Math.min(99, calculatePositionOverall(player, player.position))));
     expect(calculateOverall(player)).toBe(expected);
   });
 
-  it('uses only primary position overall when no secondary positions are present', () => {
-    const source = initialPlayers[0];
-    const player = { ...source, secondaryPositions: [] };
-    const expected = Math.round(Math.max(25, Math.min(99, calculatePositionOverall(player, player.position))));
-    expect(calculateOverall(player)).toBe(expected);
+  it('secondary positions no longer blend into natural overall', () => {
+    const player = initialPlayers.find((p) => p.secondaryPositions.length >= 1) ?? initialPlayers[0];
+    const boostedSecondary = {
+      ...player,
+      ratings: { ...player.ratings, threePoint: Math.min(99, player.ratings.threePoint + 20), perimeterDefense: Math.min(99, player.ratings.perimeterDefense + 20) }
+    };
+
+    expect(calculateOverall(boostedSecondary)).toBe(Math.round(Math.max(25, Math.min(99, calculatePositionOverall(boostedSecondary, boostedSecondary.position)))));
+  });
+
+  it('returns all position overalls for UI/lineup usage', () => {
+    const player = initialPlayers[0];
+    const overalls = calculateAllPositionOveralls(player);
+
+    expect(Object.keys(overalls).sort()).toEqual(['C', 'PF', 'PG', 'SF', 'SG']);
+    expect(overalls.PG).toBe(Math.round(Math.max(25, Math.min(99, calculatePositionOverall(player, 'PG')))));
+    expect(overalls.C).toBe(Math.round(Math.max(25, Math.min(99, calculatePositionOverall(player, 'C')))));
+  });
+
+  it('effective overall has no penalty at primary and listed secondary positions', () => {
+    const player = initialPlayers.find((p) => p.secondaryPositions.length >= 1) ?? initialPlayers[0];
+    expect(calculateEffectiveOverall(player, player.position)).toBe(Math.round(Math.max(25, Math.min(99, calculatePositionOverall(player, player.position)))));
+    expect(calculateEffectiveOverall(player, player.secondaryPositions[0])).toBe(Math.round(Math.max(25, Math.min(99, calculatePositionOverall(player, player.secondaryPositions[0])))));
+  });
+
+  it('effective overall applies distance-based out-of-position penalties', () => {
+    const pg = { ...initialPlayers[0], position: 'PG' as const, secondaryPositions: [] };
+    expect(calculateEffectiveOverall(pg, 'SG')).toBe(Math.round(Math.max(25, Math.min(99, calculatePositionOverall(pg, 'SG') - 4))));
+    expect(calculateEffectiveOverall(pg, 'PF')).toBe(Math.round(Math.max(25, Math.min(99, calculatePositionOverall(pg, 'PF') - 12))));
+
+    const c = { ...initialPlayers[1], position: 'C' as const, secondaryPositions: [] };
+    expect(calculateEffectiveOverall(c, 'PG')).toBe(Math.round(Math.max(25, Math.min(99, calculatePositionOverall(c, 'PG') - 16))));
+  });
+
+  it('secondary position changes affect effective fit but not natural overall', () => {
+    const base = { ...initialPlayers[0], position: 'SF' as const, secondaryPositions: [] as typeof initialPlayers[0]['secondaryPositions'] };
+    const withSecondary = { ...base, secondaryPositions: ['PF'] as typeof initialPlayers[0]['secondaryPositions'] };
+
+    expect(calculateOverall(withSecondary)).toBe(calculateOverall(base));
+    expect(calculateEffectiveOverall(base, 'PF')).toBe(Math.round(Math.max(25, Math.min(99, calculatePositionOverall(base, 'PF') - 4))));
+    expect(calculateEffectiveOverall(withSecondary, 'PF')).toBe(Math.round(Math.max(25, Math.min(99, calculatePositionOverall(withSecondary, 'PF')))));
   });
 
   it('rounds and clamps final overall to 25-99', () => {
