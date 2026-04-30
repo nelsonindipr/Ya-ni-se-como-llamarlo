@@ -7,6 +7,19 @@ const avg = (...values: number[]): number => values.reduce((sum, value) => sum +
 export const speedWithBallProxyFromRatings = (ratings: PlayerRatings): number => ratings.speed * 0.55 + ratings.acceleration * 0.3 + ratings.ballHandle * 0.15;
 
 type PositionOverallWeights = Record<Position, Record<keyof Player['ratings'], number>>;
+type ScoringBlocks = Record<
+  | 'perimeterShooting' | 'movementShooting' | 'shotCreation' | 'rimPressure'
+  | 'guardPlaymaking' | 'wingPlaymaking' | 'bigPlaymaking'
+  | 'guardDefense' | 'wingDefense' | 'bigDefense'
+  | 'rebounding' | 'athleticism' | 'interiorScoring' | 'stretchScoring' | 'iqClutch',
+  number
+>;
+type PositionArchetypeScores = Record<Position, Record<string, number>>;
+
+const BASE_POSITION_WEIGHT = 0.7;
+const ARCHETYPE_WEIGHT = 0.3;
+const MAX_UPLIFT_FROM_BASE = 6;
+const MAX_DOWNSIDE_FROM_BASE = 2;
 
 export const POSITION_OVERALL_WEIGHTS: PositionOverallWeights = {
   PG: { closeShot: 0.015, drivingLayup: 0.055, drivingDunk: 0.005, standingDunk: 0.002, postControl: 0.002, drawFoul: 0.04, midRange: 0.03, threePoint: 0.065, freeThrow: 0.03, shotCreation: 0.07, offBallMovement: 0.015, passAccuracy: 0.115, ballHandle: 0.12, interiorDefense: 0.008, perimeterDefense: 0.055, steal: 0.04, block: 0.003, offensiveRebound: 0.005, defensiveRebound: 0.012, speed: 0.065, acceleration: 0.055, strength: 0.012, vertical: 0.008, stamina: 0.025, offensiveIQ: 0.075, defensiveIQ: 0.03, clutch: 0.028, hustle: 0.015 },
@@ -26,10 +39,87 @@ export const simplifiedRatingsFromDetailed = (player: Player): SimplifiedPlayerR
 });
 
 export const calculatePositionOverall = (player: Player, position: Position): number =>
-  Object.entries(POSITION_OVERALL_WEIGHTS[position]).reduce((total, [attribute, weight]) => total + player.ratings[attribute as keyof PlayerRatings] * weight, 0);
+  calculatePositionOverallFromRatings(player.ratings, position);
 
 const calculatePositionOverallFromRatings = (ratings: PlayerRatings, position: Position): number =>
   Object.entries(POSITION_OVERALL_WEIGHTS[position]).reduce((total, [attribute, weight]) => total + ratings[attribute as keyof PlayerRatings] * weight, 0);
+
+const scoringBlocksFromRatings = (ratings: PlayerRatings): ScoringBlocks => ({
+  perimeterShooting: ratings.threePoint * 0.45 + ratings.midRange * 0.2 + ratings.freeThrow * 0.15 + ratings.offBallMovement * 0.1 + ratings.shotCreation * 0.1,
+  movementShooting: ratings.offBallMovement * 0.35 + ratings.threePoint * 0.35 + ratings.midRange * 0.15 + ratings.stamina * 0.1 + ratings.offensiveIQ * 0.05,
+  shotCreation: ratings.shotCreation * 0.45 + ratings.ballHandle * 0.2 + ratings.midRange * 0.15 + ratings.threePoint * 0.1 + ratings.offensiveIQ * 0.1,
+  rimPressure: ratings.drivingLayup * 0.35 + ratings.drawFoul * 0.2 + ratings.speed * 0.15 + ratings.acceleration * 0.15 + ratings.drivingDunk * 0.15,
+  guardPlaymaking: ratings.passAccuracy * 0.45 + ratings.ballHandle * 0.3 + ratings.offensiveIQ * 0.2 + ratings.acceleration * 0.05,
+  wingPlaymaking: ratings.passAccuracy * 0.35 + ratings.ballHandle * 0.2 + ratings.offensiveIQ * 0.3 + ratings.strength * 0.05 + ratings.shotCreation * 0.1,
+  bigPlaymaking: ratings.passAccuracy * 0.42 + ratings.offensiveIQ * 0.35 + ratings.postControl * 0.13 + ratings.ballHandle * 0.1,
+  guardDefense: ratings.perimeterDefense * 0.4 + ratings.steal * 0.2 + ratings.defensiveIQ * 0.25 + ratings.acceleration * 0.08 + ratings.hustle * 0.07,
+  wingDefense: ratings.perimeterDefense * 0.28 + ratings.interiorDefense * 0.15 + ratings.steal * 0.12 + ratings.block * 0.08 + ratings.defensiveIQ * 0.2 + ratings.strength * 0.1 + ratings.hustle * 0.07,
+  bigDefense: ratings.interiorDefense * 0.38 + ratings.block * 0.24 + ratings.defensiveRebound * 0.1 + ratings.defensiveIQ * 0.18 + ratings.strength * 0.1,
+  rebounding: ratings.offensiveRebound * 0.4 + ratings.defensiveRebound * 0.4 + ratings.vertical * 0.1 + ratings.strength * 0.1,
+  athleticism: ratings.speed * 0.3 + ratings.acceleration * 0.25 + ratings.vertical * 0.2 + ratings.strength * 0.15 + ratings.stamina * 0.1,
+  interiorScoring: ratings.closeShot * 0.3 + ratings.postControl * 0.28 + ratings.standingDunk * 0.15 + ratings.drivingLayup * 0.12 + ratings.drawFoul * 0.15,
+  stretchScoring: ratings.threePoint * 0.45 + ratings.midRange * 0.22 + ratings.freeThrow * 0.13 + ratings.offBallMovement * 0.1 + ratings.offensiveIQ * 0.1,
+  iqClutch: ratings.offensiveIQ * 0.38 + ratings.defensiveIQ * 0.25 + ratings.clutch * 0.22 + ratings.hustle * 0.15
+});
+
+const archetypeScoresForPosition = (ratings: PlayerRatings, position: Position): Record<string, number> => {
+  const b = scoringBlocksFromRatings(ratings);
+  const scores: PositionArchetypeScores = {
+    PG: {
+      floorGeneral: b.guardPlaymaking * 0.5 + b.perimeterShooting * 0.15 + b.iqClutch * 0.2 + b.guardDefense * 0.15,
+      scoringPG: b.shotCreation * 0.35 + b.perimeterShooting * 0.25 + b.rimPressure * 0.2 + b.guardPlaymaking * 0.1 + b.iqClutch * 0.1,
+      defensivePG: b.guardDefense * 0.55 + b.guardPlaymaking * 0.15 + b.athleticism * 0.15 + b.iqClutch * 0.15,
+      reboundingPG: b.rebounding * 0.45 + b.guardDefense * 0.2 + b.athleticism * 0.2 + b.guardPlaymaking * 0.15,
+      offBallPG: b.movementShooting * 0.5 + b.perimeterShooting * 0.2 + b.guardPlaymaking * 0.15 + b.iqClutch * 0.15
+    },
+    SG: {
+      offScreenShooter: b.movementShooting * 0.5 + b.perimeterShooting * 0.25 + b.shotCreation * 0.1 + b.iqClutch * 0.15,
+      shotCreatorSG: b.shotCreation * 0.45 + b.perimeterShooting * 0.2 + b.rimPressure * 0.15 + b.guardPlaymaking * 0.1 + b.iqClutch * 0.1,
+      slasherSG: b.rimPressure * 0.45 + b.athleticism * 0.25 + b.shotCreation * 0.15 + b.guardDefense * 0.15,
+      threeAndDSG: b.perimeterShooting * 0.35 + b.guardDefense * 0.4 + b.iqClutch * 0.15 + b.athleticism * 0.1,
+      comboGuardSG: b.guardPlaymaking * 0.35 + b.shotCreation * 0.25 + b.perimeterShooting * 0.2 + b.guardDefense * 0.2,
+      reboundingSG: b.rebounding * 0.5 + b.guardDefense * 0.2 + b.athleticism * 0.2 + b.perimeterShooting * 0.1
+    },
+    SF: {
+      wingScorer: b.shotCreation * 0.35 + b.perimeterShooting * 0.2 + b.rimPressure * 0.2 + b.wingPlaymaking * 0.15 + b.iqClutch * 0.1,
+      threeAndDWing: b.perimeterShooting * 0.28 + b.wingDefense * 0.42 + b.iqClutch * 0.2 + b.athleticism * 0.1,
+      pointForward: b.wingPlaymaking * 0.45 + b.shotCreation * 0.15 + b.wingDefense * 0.15 + b.iqClutch * 0.25,
+      slashingWing: b.rimPressure * 0.35 + b.athleticism * 0.25 + b.wingDefense * 0.2 + b.shotCreation * 0.2,
+      reboundingWing: b.rebounding * 0.45 + b.wingDefense * 0.3 + b.athleticism * 0.15 + b.perimeterShooting * 0.1,
+      offBallWing: b.movementShooting * 0.4 + b.perimeterShooting * 0.25 + b.wingDefense * 0.2 + b.iqClutch * 0.15
+    },
+    PF: {
+      stretchFour: b.stretchScoring * 0.45 + b.rebounding * 0.15 + b.wingDefense * 0.1 + b.bigDefense * 0.15 + b.iqClutch * 0.15,
+      interiorPF: b.interiorScoring * 0.35 + b.rebounding * 0.25 + b.bigDefense * 0.2 + b.athleticism * 0.1 + b.iqClutch * 0.1,
+      defensiveRebounderPF: b.rebounding * 0.42 + b.bigDefense * 0.33 + b.athleticism * 0.1 + b.interiorScoring * 0.05 + b.iqClutch * 0.1,
+      pointBigPF: b.bigPlaymaking * 0.38 + b.stretchScoring * 0.2 + b.interiorScoring * 0.12 + b.bigDefense * 0.1 + b.iqClutch * 0.2,
+      rimRunnerPF: b.rimPressure * 0.3 + b.athleticism * 0.3 + b.rebounding * 0.2 + b.bigDefense * 0.2,
+      smallBallBig: b.wingDefense * 0.25 + b.bigDefense * 0.2 + b.stretchScoring * 0.2 + b.rebounding * 0.15 + b.athleticism * 0.2
+    },
+    C: {
+      rimProtector: b.bigDefense * 0.5 + b.rebounding * 0.25 + b.athleticism * 0.15 + b.interiorScoring * 0.1,
+      rebounderC: b.rebounding * 0.5 + b.bigDefense * 0.25 + b.interiorScoring * 0.15 + b.athleticism * 0.1,
+      postScorerC: b.interiorScoring * 0.45 + b.bigDefense * 0.2 + b.rebounding * 0.15 + b.iqClutch * 0.2,
+      stretchFive: b.stretchScoring * 0.5 + b.bigPlaymaking * 0.15 + b.bigDefense * 0.15 + b.rebounding * 0.1 + b.iqClutch * 0.1,
+      passingHubC: b.bigPlaymaking * 0.45 + b.iqClutch * 0.25 + b.interiorScoring * 0.1 + b.rebounding * 0.1 + b.bigDefense * 0.1,
+      rimRunnerC: b.rimPressure * 0.3 + b.athleticism * 0.25 + b.bigDefense * 0.2 + b.rebounding * 0.2 + b.interiorScoring * 0.05,
+      mobileSwitchC: b.athleticism * 0.25 + b.wingDefense * 0.2 + b.bigDefense * 0.25 + b.rebounding * 0.15 + b.stretchScoring * 0.15
+    }
+  };
+  return scores[position];
+};
+
+export const calculatePositionOverallDiagnosticsFromRatings = (ratings: PlayerRatings, position: Position) => {
+  const basePositionScore = calculatePositionOverallFromRatings(ratings, position);
+  const archetypeScores = archetypeScoresForPosition(ratings, position);
+  const [bestArchetypeName, bestArchetypeScore] = Object.entries(archetypeScores).sort((a, b) => b[1] - a[1])[0];
+  const rawBlendedScore = basePositionScore * BASE_POSITION_WEIGHT + bestArchetypeScore * ARCHETYPE_WEIGHT;
+  const cappedFinalScore = Math.max(basePositionScore - MAX_DOWNSIDE_FROM_BASE, Math.min(basePositionScore + MAX_UPLIFT_FROM_BASE, rawBlendedScore));
+  const finalRoundedOverall = roundRating(cappedFinalScore);
+  return { basePositionScore, archetypeScores, bestArchetypeName, bestArchetypeScore, rawBlendedScore, cappedFinalScore, finalRoundedOverall };
+};
+
+export const calculateBasePositionOverallFromRatings = (ratings: PlayerRatings, position: Position): number => calculatePositionOverallFromRatings(ratings, position);
 
 const POSITION_INDEX: Record<Position, number> = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
 
@@ -66,7 +156,7 @@ export const calculateAllPositionOveralls = (player: Player): Record<Position, n
   C: roundRating(calculatePositionOverall(player, 'C'))
 });
 
-export const calculateBsnOverallFromRatings = (ratings: PlayerRatings, position: Position): number => roundRating(calculatePositionOverallFromRatings(ratings, position));
+export const calculateBsnOverallFromRatings = (ratings: PlayerRatings, position: Position): number => calculatePositionOverallDiagnosticsFromRatings(ratings, position).finalRoundedOverall;
 export const calculatePlayerOverall = (player: Player): number => calculateOverall(player);
 export const bsnOverallBand = (overall: number): string => { if (overall >= 90) return 'BSN superstar / elite import'; if (overall >= 85) return 'BSN star / top native / top import'; if (overall >= 80) return 'Strong starter'; if (overall >= 75) return 'Average starter / strong sixth man'; if (overall >= 70) return 'Normal rotation player'; if (overall >= 65) return 'Deep bench / situational player'; if (overall >= 60) return 'Reserve / prospect'; return 'Emergency / non-rotation'; };
 export const legacyTendenciesFromPlayer = (player: Player) => ({ shot3Rate: player.tendencies.threePointTendency, driveRate: player.tendencies.driveTendency, postUpRate: player.tendencies.postUpTendency, passRate: player.tendencies.passTendency, foulDrawRate: player.tendencies.drawFoulTendency });
