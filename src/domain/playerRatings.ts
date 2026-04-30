@@ -31,12 +31,40 @@ export const calculatePositionOverall = (player: Player, position: Position): nu
 const calculatePositionOverallFromRatings = (ratings: PlayerRatings, position: Position): number =>
   Object.entries(POSITION_OVERALL_WEIGHTS[position]).reduce((total, [attribute, weight]) => total + ratings[attribute as keyof PlayerRatings] * weight, 0);
 
-export const calculateOverall = (player: Player): number => {
-  const primaryOverall = calculatePositionOverall(player, player.position);
-  if (player.secondaryPositions.length === 0) return roundRating(primaryOverall);
-  const bestSecondaryOverall = Math.max(...player.secondaryPositions.map((position) => calculatePositionOverall(player, position)));
-  return roundRating(primaryOverall * 0.75 + bestSecondaryOverall * 0.25);
+const POSITION_INDEX: Record<Position, number> = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
+
+const OUT_OF_POSITION_DISTANCE_PENALTY: Record<number, number> = {
+  0: 0,
+  1: 4,
+  2: 8,
+  3: 12,
+  4: 16
 };
+
+const closestDistanceToNaturalPosition = (player: Player, assignedPosition: Position): number => {
+  const naturalPositions = [player.position, ...player.secondaryPositions];
+  const assignedIndex = POSITION_INDEX[assignedPosition];
+  return naturalPositions.reduce((closest, position) => Math.min(closest, Math.abs(POSITION_INDEX[position] - assignedIndex)), Number.POSITIVE_INFINITY);
+};
+
+export const calculateOverall = (player: Player): number => roundRating(calculatePositionOverall(player, player.position));
+
+export const calculateEffectiveOverall = (player: Player, assignedPosition: Position): number => {
+  const assignedOverall = calculatePositionOverall(player, assignedPosition);
+  if (assignedPosition === player.position || player.secondaryPositions.includes(assignedPosition)) return roundRating(assignedOverall);
+
+  const distance = closestDistanceToNaturalPosition(player, assignedPosition);
+  const penalty = OUT_OF_POSITION_DISTANCE_PENALTY[Math.min(4, distance)] ?? OUT_OF_POSITION_DISTANCE_PENALTY[4];
+  return roundRating(assignedOverall - penalty);
+};
+
+export const calculateAllPositionOveralls = (player: Player): Record<Position, number> => ({
+  PG: roundRating(calculatePositionOverall(player, 'PG')),
+  SG: roundRating(calculatePositionOverall(player, 'SG')),
+  SF: roundRating(calculatePositionOverall(player, 'SF')),
+  PF: roundRating(calculatePositionOverall(player, 'PF')),
+  C: roundRating(calculatePositionOverall(player, 'C'))
+});
 
 export const calculateBsnOverallFromRatings = (ratings: PlayerRatings, position: Position): number => roundRating(calculatePositionOverallFromRatings(ratings, position));
 export const calculatePlayerOverall = (player: Player): number => calculateOverall(player);
