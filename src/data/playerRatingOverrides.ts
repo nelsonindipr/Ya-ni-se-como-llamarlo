@@ -1,7 +1,7 @@
 import type { PlayerRatings, PlayerTendencies } from '../domain/types';
 
 type PlayerRatingOverride = {
-  ratings: PlayerRatings;
+  ratings: Partial<PlayerRatings> & { speedWithBall?: number };
   tendencies?: PlayerTendencies;
   ratingSource?: string;
   ratingConfidence?: 'high' | 'medium' | 'low';

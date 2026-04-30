@@ -35,7 +35,7 @@
 - midRange / threePoint / freeThrow: shotmaking at those zones against BSN contests.
 - drawFoul: effectiveness at creating contact and free-throw opportunities.
 - shotCreation / offBallMovement: self-created jumper quality and off-ball shot quality generation.
-- passAccuracy / ballHandle / speedWithBall: playmaking reliability and dribble pressure handling.
+- passAccuracy / ballHandle / clutch / hustle: playmaking reliability and dribble pressure handling.
 - interiorDefense / perimeterDefense / steal / block: defensive event prevention and creation.
 - offensiveRebound / defensiveRebound: rebounding win rate relative to BSN athletes.
 - speed / acceleration / strength / vertical / stamina: physical tools and game endurance.
