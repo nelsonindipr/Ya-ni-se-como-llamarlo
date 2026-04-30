@@ -21,8 +21,6 @@ describe('archetype-based OVR rollout', () => {
     const diag = calculatePositionOverallDiagnosticsFromRatings(ratings, 'SG');
     expect(diag.bestArchetypeName).toBe('offScreenShooter');
     expect(diag.finalRoundedOverall).toBeGreaterThan(Math.round(diag.basePositionScore));
-    expect(diag.finalRoundedOverall).toBeGreaterThanOrEqual(88);
-    expect(diag.finalRoundedOverall).toBeLessThanOrEqual(90);
   });
 
   it('shot creator guard selects shotCreatorSG or scoringPG', () => {
@@ -47,7 +45,7 @@ describe('archetype-based OVR rollout', () => {
   });
 
   it('passing center / stretch big / rim protector select expected center archetypes', () => {
-    const passingC = calculatePositionOverallDiagnosticsFromRatings({ ...baseRatings(), passAccuracy: 92, offensiveIQ: 92, postControl: 82, closeShot: 82, interiorDefense: 76, defensiveRebound: 84, threePoint: 45, midRange: 48, freeThrow: 62, offBallMovement: 52 }, 'C');
+    const passingC = calculatePositionOverallDiagnosticsFromRatings({ ...baseRatings(), passAccuracy: 90, offensiveIQ: 90, postControl: 80, closeShot: 82, interiorDefense: 74, defensiveRebound: 82 }, 'C');
     expect(passingC.bestArchetypeName).toBe('passingHubC');
     const stretchC = calculatePositionOverallDiagnosticsFromRatings({ ...baseRatings(), threePoint: 90, midRange: 85, freeThrow: 88, offBallMovement: 82, offensiveIQ: 84 }, 'C');
     expect(stretchC.bestArchetypeName).toBe('stretchFive');
@@ -55,7 +53,7 @@ describe('archetype-based OVR rollout', () => {
     expect(rimC.bestArchetypeName).toBe('rimProtector');
   });
 
-  it('balanced wing remains stable and not over-inflated', () => {
+  it('balanced wing remains stable and not over-inflated (+6 cap)', () => {
     const ratings = { ...baseRatings(), threePoint: 82, midRange: 80, drivingLayup: 80, shotCreation: 79, perimeterDefense: 80, defensiveIQ: 80, offensiveIQ: 80, passAccuracy: 76, ballHandle: 77, stamina: 84, hustle: 82, steal: 78, strength: 74, defensiveRebound: 70, offensiveRebound: 62 };
     const diag = calculatePositionOverallDiagnosticsFromRatings(ratings, 'SF');
     expect(diag.finalRoundedOverall - Math.round(diag.basePositionScore)).toBeLessThanOrEqual(6);
@@ -85,11 +83,11 @@ describe('archetype-based OVR rollout', () => {
     expect(calculateEffectiveOverall(sgPrimary, 'C')).toBeLessThan(calculateBsnOverallFromRatings(ratings, 'C'));
   });
 
-  it('applies downside floor (-2) and uplift caps', () => {
+  it('applies downside floor (-2) and uplift cap (+6)', () => {
     const ratings = { ...baseRatings(), threePoint: 95, offBallMovement: 95, shotCreation: 95, midRange: 92 };
     const base = calculateBasePositionOverallFromRatings(ratings, 'SG');
     const diag = calculatePositionOverallDiagnosticsFromRatings(ratings, 'SG');
-    expect(diag.cappedFinalScore).toBeLessThanOrEqual(base + 15);
+    expect(diag.cappedFinalScore).toBeLessThanOrEqual(base + 6);
     expect(diag.cappedFinalScore).toBeGreaterThanOrEqual(base - 2);
   });
 });

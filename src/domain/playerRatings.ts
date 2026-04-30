@@ -16,31 +16,9 @@ type ScoringBlocks = Record<
 >;
 type PositionArchetypeScores = Record<Position, Record<string, number>>;
 
-const POSITION_BLEND_WEIGHTS: Record<Position, { base: number; archetype: number }> = {
-  PG: { base: 0.6, archetype: 0.4 },
-  SG: { base: 0.5, archetype: 0.5 },
-  SF: { base: 0.55, archetype: 0.45 },
-  PF: { base: 0.6, archetype: 0.4 },
-  C: { base: 0.65, archetype: 0.35 }
-};
-const POSITION_MAX_UPLIFT_FROM_BASE: Record<Position, number> = { PG: 10, SG: 14, SF: 12, PF: 10, C: 9 };
-const ARCHETYPE_MAX_UPLIFT_OVERRIDE: Record<string, number> = {
-  offScreenShooter: 15,
-  shotCreatorSG: 12,
-  threeAndDSG: 10,
-  stretchFour: 12,
-  stretchFive: 12,
-  passingHubC: 10,
-  rimProtector: 9,
-  rebounderC: 9
-};
-const ARCHETYPE_SCORE_MULTIPLIER: Record<string, number> = {
-  offScreenShooter: 1.1,
-  shotCreatorSG: 1.12,
-  scoringPG: 1.08,
-  stretchFour: 1.15,
-  stretchFive: 1.15
-};
+const BASE_POSITION_WEIGHT = 0.7;
+const ARCHETYPE_WEIGHT = 0.3;
+const MAX_UPLIFT_FROM_BASE = 6;
 const MAX_DOWNSIDE_FROM_BASE = 2;
 
 export const POSITION_OVERALL_WEIGHTS: PositionOverallWeights = {
@@ -128,24 +106,15 @@ const archetypeScoresForPosition = (ratings: PlayerRatings, position: Position):
       mobileSwitchC: b.athleticism * 0.25 + b.wingDefense * 0.2 + b.bigDefense * 0.25 + b.rebounding * 0.15 + b.stretchScoring * 0.15
     }
   };
-  const shootingGate = Math.max(0.8, Math.min(1.25, (ratings.threePoint * 0.55 + ratings.offBallMovement * 0.45) / 80));
-  return Object.fromEntries(
-    Object.entries(scores[position]).map(([archetypeName, score]) => {
-      const baseMultiplier = ARCHETYPE_SCORE_MULTIPLIER[archetypeName] ?? 1;
-      const multiplier = archetypeName === 'offScreenShooter' ? baseMultiplier * shootingGate : baseMultiplier;
-      return [archetypeName, score * multiplier];
-    })
-  );
+  return scores[position];
 };
 
 export const calculatePositionOverallDiagnosticsFromRatings = (ratings: PlayerRatings, position: Position) => {
   const basePositionScore = calculatePositionOverallFromRatings(ratings, position);
   const archetypeScores = archetypeScoresForPosition(ratings, position);
   const [bestArchetypeName, bestArchetypeScore] = Object.entries(archetypeScores).sort((a, b) => b[1] - a[1])[0];
-  const blend = POSITION_BLEND_WEIGHTS[position];
-  const rawBlendedScore = basePositionScore * blend.base + bestArchetypeScore * blend.archetype;
-  const maxUplift = ARCHETYPE_MAX_UPLIFT_OVERRIDE[bestArchetypeName] ?? POSITION_MAX_UPLIFT_FROM_BASE[position];
-  const cappedFinalScore = Math.max(basePositionScore - MAX_DOWNSIDE_FROM_BASE, Math.min(basePositionScore + maxUplift, rawBlendedScore));
+  const rawBlendedScore = basePositionScore * BASE_POSITION_WEIGHT + bestArchetypeScore * ARCHETYPE_WEIGHT;
+  const cappedFinalScore = Math.max(basePositionScore - MAX_DOWNSIDE_FROM_BASE, Math.min(basePositionScore + MAX_UPLIFT_FROM_BASE, rawBlendedScore));
   const finalRoundedOverall = roundRating(cappedFinalScore);
   return { basePositionScore, archetypeScores, bestArchetypeName, bestArchetypeScore, rawBlendedScore, cappedFinalScore, finalRoundedOverall };
 };
