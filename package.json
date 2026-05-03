@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "audit:balance": "vite-node scripts/season-balance-report.ts --seasons 100 --seedStart 1000",
+    "audit:balance:json": "vite-node scripts/season-balance-report.ts --seasons 100 --seedStart 1000 --json"
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -37,3 +37,33 @@ npm run dev
 npm run build
 npm run test
 ```
+
+
+## Balance audits (Phase 1)
+
+Run Monte Carlo season audits to measure realism and catch simulation regressions:
+
+```bash
+npm run audit:balance
+npm run audit:balance:json
+```
+
+You can override defaults directly:
+
+```bash
+vite-node scripts/season-balance-report.ts --seasons 200 --seedStart 5000 --json
+```
+
+### How to interpret output
+
+- Each metric prints mean/median/stdev/min/max across simulated seasons.
+- `out=...%` is the percent of seasons outside the target range.
+- `Worst offending metric` identifies the highest out-of-range percentage.
+- Script exits non-zero when quality gates fail (safe for CI).
+
+### Safe tuning workflow
+
+1. Change one simulation factor at a time (pace, shot mix, foul tuning, injury risk).
+2. Re-run balance audit with the same seeds first (regression check).
+3. Re-run with a wider seed window for robustness.
+4. Do not ship if critical metrics fail gates; adjust incrementally and re-test.
