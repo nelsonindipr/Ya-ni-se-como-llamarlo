@@ -1,4 +1,4 @@
-import { balanceTargets, evaluateQualityGates, runSeasonMetrics, summarizeMetrics } from './balance-audit-core.ts';
+import { balanceTargets, evaluateQualityGates, runSeasonMetrics, summarizeMetrics } from './balance-audit-core';
 
 type CliOptions = { seasons: number; seedStart: number; json: boolean };
 
