@@ -1,4 +1,4 @@
-import { createNewGameState, simulateByWindow } from '../src/state/gameState.ts';
+import { createNewGameState, simulateByWindow } from '../src/state/gameState';
 
 export type MetricKey =
   | 'teamPpg'
