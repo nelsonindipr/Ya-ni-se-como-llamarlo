@@ -20,7 +20,7 @@ import {
   validateTeamRotation,
   type GameState
 } from './state/gameState';
-import { clearSeasonState, loadSeasonState, saveSeasonState } from './utils/storage';
+import { autosaveCurrentSave, createNewSave, deleteSave, duplicateSave, getActiveSaveId, getCurrentSave, getSavesIndex, loadSave, renameSave, saveGame, setActiveSave, type FullSave } from './utils/storage';
 
 type AppSection =
   | 'Dashboard'
@@ -45,6 +45,9 @@ const sections: AppSection[] = ['Dashboard', 'Roster', 'Rotation', 'Schedule', '
 
 function App() {
   const [state, setState] = useState<GameState>(() => createNewGameState(initialSeed));
+  const [currentSave, setCurrentSave] = useState<FullSave | null>(null);
+  const [view, setView] = useState<'main_menu'|'new_game'|'team_select'|'save_manager'|'in_game'>('main_menu');
+  const [newSaveName, setNewSaveName] = useState('My BSN Career');
   const [statusMessage, setStatusMessage] = useState('');
   const [activeSection, setActiveSection] = useState<AppSection>('Dashboard');
   const [simOption, setSimOption] = useState<SimWindow>('next_game');
@@ -52,15 +55,21 @@ function App() {
   const [rosterFilter, setRosterFilter] = useState('');
 
   useEffect(() => {
-    const loaded = loadSeasonState();
+    const activeId = getActiveSaveId();
+    if (!activeId) return;
+    const loaded = loadSave(activeId);
     if (!loaded) return;
-    setState(loaded);
-    setStatusMessage('Loaded saved season from local storage.');
+    setCurrentSave(loaded);
+    setState(loaded.coreState);
   }, []);
 
   const persist = (next: GameState, message?: string): void => {
     setState(next);
-    saveSeasonState(next);
+    if (currentSave) {
+      const updated = { ...currentSave, coreState: next, teams: next.teams, schedule: next.schedule, stats: next.stats, transactions: next.transactions, gameState: { ...currentSave.gameState, currentDate: next.currentDate, phase: next.phase, seasonYear: next.seasonYear } };
+      autosaveCurrentSave(updated);
+      setCurrentSave(updated);
+    }
     if (message) setStatusMessage(message);
   };
 
@@ -163,10 +172,36 @@ function App() {
     return <section><h2>{activeSection}</h2><p>Module scaffold ready for BSN management workflows.</p></section>;
   };
 
+
+  if (view !== 'in_game') {
+    const saves = getSavesIndex();
+    return <main className="menu-shell">
+      <section className="menu-card">
+        {view === 'main_menu' ? <>
+          <h1>BSN Franchise Mode</h1>
+          <button disabled={!getCurrentSave()} onClick={() => { const loaded = getCurrentSave(); if (!loaded) return; setCurrentSave(loaded); setState(loaded.coreState); setView('in_game'); }}>Continue</button>
+          <button onClick={() => setView('new_game')}>New Game</button>
+          <button onClick={() => setView('save_manager')}>Load Game</button>
+          <button onClick={() => alert('Options coming soon.')}>Options</button>
+        </> : null}
+        {view === 'new_game' ? <>
+          <h2>Create New Game</h2><input value={newSaveName} onChange={(e)=>setNewSaveName(e.target.value)} placeholder="Save Name" />
+          <button onClick={() => setView('team_select')}>Next: Choose Your Team</button><button onClick={()=>setView('main_menu')}>Back</button>
+        </> : null}
+        {view === 'team_select' ? <>
+          <h2>Choose Your Team</h2><div className="cards-grid">{initialTeams.map((t)=><article key={t.id} className="card"><h3>{t.name}</h3><p>{t.city}</p><button onClick={()=>{ const next=createNewGameState(initialSeed); next.selectedTeamId=t.id; const full=createNewSave(newSaveName||`${t.name} Career`, t.id, next, initialPlayers); setCurrentSave(full); setState(full.coreState); setActiveSave(full.saveId); setView('in_game'); setStatusMessage('New save created.'); }}>Start Career</button></article>)}</div><button onClick={()=>setView('new_game')}>Back</button>
+        </> : null}
+        {view === 'save_manager' ? <>
+          <h2>Save Manager</h2>{saves.map((s)=><article key={s.saveId} className="card"><h3>{s.saveName}</h3><p>{s.teamName} | {s.currentDate} | {s.record}</p><p>Last saved: {new Date(s.updatedAt).toLocaleString()}</p><button onClick={()=>{ const loaded=loadSave(s.saveId); if(!loaded) return; setCurrentSave(loaded); setState(loaded.coreState); setActiveSave(s.saveId); setView('in_game'); }}>Continue</button><button onClick={()=>{ const n=prompt('Rename save', s.saveName); if(n) renameSave(s.saveId,n); setStatusMessage('Save renamed.'); setView('save_manager'); }}>Rename</button><button onClick={()=>{ duplicateSave(s.saveId); setView('save_manager'); }}>Duplicate</button><button onClick={()=>{ if(confirm('Delete this save?')) { deleteSave(s.saveId); setView('save_manager'); } }}>Delete</button></article>)}<button onClick={()=>setView('main_menu')}>Back</button>
+        </> : null}
+      </section>
+    </main>;
+  }
+
   return <main className="app-shell">
     <header className="top-nav">
-      <div><strong>{userTeam.name}</strong> | {userTeamStats.wins}-{userTeamStats.losses}</div>
-      <div>{state.currentDate} · {state.phase}</div>
+      <div><strong>{currentSave?.saveName ?? 'Unsaved'}</strong> | {userTeam.name} | Record: {userTeamStats.wins}-{userTeamStats.losses}</div>
+      <div>{state.currentDate} · {state.phase} · Last saved: {currentSave ? new Date(currentSave.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'N/A'}</div>
       <div>Next: {nextGame ? `${teamNameById.get(nextGame.awayTeamId)} @ ${teamNameById.get(nextGame.homeTeamId)}` : 'Complete'}</div>
       <div className="sim-controls"><select value={simOption} onChange={(e) => setSimOption(e.target.value as SimWindow)}><option value="next_game">Next Game</option><option value="one_day">1 Day</option><option value="one_week">1 Week</option><option value="one_month">1 Month</option><option value="rest_regular_season">Rest Regular Season</option><option value="until_playoffs">Until Playoffs</option><option value="full_season">Full Season</option></select><button onClick={() => persist(simulateByWindow(state, simOption), 'Simulation complete.')} disabled={remainingGames === 0 && simOption !== 'full_season'}>{simOption === 'next_game' ? 'Simulate Next Game' : 'Simulate'}</button></div>
     </header>
@@ -186,7 +221,7 @@ function App() {
       </aside>
     </div>
     {selectedPlayer ? <div className="modal-overlay" onClick={() => setState((s) => ({ ...s, selectedPlayerId: null }))}><div className="modal-content" onClick={(e) => e.stopPropagation()}><PlayerProfile player={selectedPlayer} teamName={teamNameById.get(selectedPlayer.teamId) ?? selectedPlayer.teamId} regularStats={state.stats.regularPlayerStats[selectedPlayer.id]} playoffStats={state.stats.playoffPlayerStats[selectedPlayer.id]} gameLogs={state.stats.playerGameLogs[selectedPlayer.id] ?? []} teamNameById={teamNameById} onBack={() => setState((s) => ({ ...s, selectedPlayerId: null }))} /></div></div> : null}
-    <footer className="footer-controls"><button onClick={() => { saveSeasonState(state); setStatusMessage('Season saved.'); }}>Save Game</button><button onClick={() => { const loaded = loadSeasonState(); if (loaded) { setState(loaded); setStatusMessage('Season loaded.'); } }}>Load Game</button><button onClick={() => { clearSeasonState(); const next = createNewGameState(initialSeed); setState(next); setStatusMessage('Season reset.'); }}>New Game</button><button onClick={() => persist(simulateNextPlayoffSeriesForState(state), 'Simulated next playoff series.')} disabled={!state.playoffBracket}>Sim Next Playoff Series</button><small>Rules: {leagueRules.game.numPeriods} x {leagueRules.game.quarterLength} min</small></footer>
+    <footer className="footer-controls"><button onClick={() => { if (!currentSave) return; const updated = { ...currentSave, coreState: state }; saveGame(updated); setCurrentSave(updated); setStatusMessage('Game saved.'); }}>Save Game</button><button onClick={() => persist(simulateNextPlayoffSeriesForState(state), 'Simulated next playoff series.')} disabled={!state.playoffBracket}>Sim Next Playoff Series</button><button onClick={() => { if (!currentSave) return; persist(state, 'Autosaved and returned to Main Menu.'); setView('main_menu'); }}>Exit to Main Menu</button><small>Rules: {leagueRules.game.numPeriods} x {leagueRules.game.quarterLength} min</small></footer>
   </main>;
 }
 
