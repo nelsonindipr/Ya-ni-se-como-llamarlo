@@ -1,5 +1,6 @@
 import { initialPlayers } from '../data/players';
 import { initialTeams } from '../data/teams';
+import { leagueRules } from '../domain/rules';
 import type {
   AvailabilityStatus,
   GameResult,
@@ -320,7 +321,8 @@ export const validateTeamRotation = (
   if (starters.length !== 5 && active.length >= 5) errors.push('Exactly 5 active starters are required.');
 
   const totalTargets = active.reduce((sum, r) => sum + (r.runtime.minutesOverride ?? r.player.minutesTarget), 0);
-  if (totalTargets > 240) errors.push('Target minutes exceed 240 team minutes by too much.');
+  const maxTeamMinutes = leagueRules.game.numPeriods * leagueRules.game.quarterLength * 5;
+  if (totalTargets > maxTeamMinutes) errors.push(`Target minutes exceed ${maxTeamMinutes} team minutes by too much.`);
 
   return { valid: errors.length === 0, errors };
 };
@@ -379,6 +381,11 @@ export const simulateScheduledGame = (state: GameState, gameId: string): GameSta
   return maybeAdvancePhase(nextState);
 };
 
+export const findNextUnplayedGameForTeam = (state: GameState, teamId: string | null): ScheduledGame | null => {
+  if (!teamId) return state.schedule.find((g) => !g.played) ?? null;
+  return state.schedule.find((g) => !g.played && (g.homeTeamId === teamId || g.awayTeamId === teamId)) ?? null;
+};
+
 const nextUnplayedOnOrBefore = (state: GameState, date: string): ScheduledGame[] =>
   state.schedule.filter((g) => !g.played && g.date <= date).sort((a, b) => (a.gameNumber < b.gameNumber ? -1 : 1));
 
@@ -387,8 +394,16 @@ export const simulateByWindow = (
   mode: 'next_game' | 'one_day' | 'one_week' | 'one_month' | 'rest_regular_season' | 'until_playoffs' | 'full_season'
 ): GameState => {
   if (mode === 'next_game') {
-    const next = state.schedule.find((g) => !g.played);
-    return next ? simulateScheduledGame(state, next.id) : state;
+    const nextUserGame = findNextUnplayedGameForTeam(state, state.selectedTeamId);
+    if (!nextUserGame) return state;
+
+    let working = state;
+    const gamesToAutoSim = working.schedule
+      .filter((g) => !g.played && g.id !== nextUserGame.id && g.date <= nextUserGame.date)
+      .sort((a, b) => a.gameNumber - b.gameNumber);
+
+    for (const game of gamesToAutoSim) working = simulateScheduledGame(working, game.id);
+    return simulateScheduledGame(working, nextUserGame.id);
   }
 
   let working = state;
