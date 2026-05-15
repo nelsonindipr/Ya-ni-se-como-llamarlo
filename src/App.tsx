@@ -7,11 +7,13 @@ import { TeamPage } from './components/TeamPage';
 import { initialPlayers } from './data/players';
 import { initialTeams } from './data/teams';
 import { leagueRules } from './domain/rules';
+import { calculateAllPositionOveralls, calculatePlayerOverall } from './domain/playerRatings';
 import { toStandingRows } from './simulation/standings';
 import {
   autoConfigureTeamRotation,
   createNewGameState,
   simulateByWindow,
+  findNextUnplayedGameForTeam,
   simulateNextPlayoffSeriesForState,
   simulateScheduledGame,
   updatePlayerAvailability,
@@ -101,7 +103,7 @@ function App() {
     })
     .sort((a, b) => b.payroll - a.payroll), [state.runtimePlayers]);
 
-  const nextGame = state.schedule.find((g) => !g.played);
+  const nextGame = findNextUnplayedGameForTeam(state, state.selectedTeamId);
   const userTeamStats = state.stats.regularTeamStats[userTeam.id];
   const conferenceRows = standings.filter((row) => row.conference === userTeam.conference);
   const userTeamStanding = conferenceRows.findIndex((row) => row.id === userTeam.id) + 1;
@@ -115,7 +117,8 @@ function App() {
       return {
         ...player,
         role: player.role,
-        overall: Math.round((player.ratings.midRange + player.ratings.threePoint + player.ratings.perimeterDefense + player.ratings.offensiveIQ + player.ratings.defensiveIQ) / 5),
+        overall: calculatePlayerOverall(player),
+        positionOveralls: calculateAllPositionOveralls(player),
         potential: Math.min(99, Math.round((player.ratings.hustle + player.ratings.stamina + player.ratings.offensiveIQ + player.ratings.defensiveIQ) / 4 + 5)),
         minutes: rp?.minutesOverride ?? player.minutesTarget,
         ppg: stats.gamesPlayed ? stats.points / stats.gamesPlayed : 0,
@@ -157,7 +160,7 @@ function App() {
       <div className="row-between"><h2>Roster</h2><input placeholder="Filter player..." value={rosterFilter} onChange={(e) => setRosterFilter(e.target.value)} /></div>
       <table>
         <thead><tr>{['displayName','position','age','nationality','role','overall','potential','minutes','ppg','rpg','apg','status'].map((col) => <th key={col}><button className="sort-btn" onClick={() => setRosterSort((prev) => ({ key: col, direction: prev.key === col && prev.direction === 'desc' ? 'asc' : 'desc' }))}>{col.toUpperCase()}</button></th>)}</tr></thead>
-        <tbody>{rosterRows.map((row) => <tr key={row.id} onClick={() => setState((s) => ({ ...s, selectedPlayerId: row.id }))}><td>{row.displayName}</td><td>{row.position}</td><td>{row.age}</td><td>{row.nationality}</td><td>{row.role}</td><td>{row.overall}</td><td>{row.potential}</td><td>{row.minutes}</td><td>{row.ppg.toFixed(1)}</td><td>{row.rpg.toFixed(1)}</td><td>{row.apg.toFixed(1)}</td><td>{row.status}</td></tr>)}</tbody>
+        <tbody>{rosterRows.map((row) => <tr key={row.id} onClick={() => setState((s) => ({ ...s, selectedPlayerId: row.id }))}><td>{row.displayName}</td><td>{row.position}</td><td>{row.age}</td><td>{row.nationality}</td><td>{row.role}</td><td><strong>{row.overall}</strong><br /><small title={`PG ${row.positionOveralls.PG} · SG ${row.positionOveralls.SG} · SF ${row.positionOveralls.SF} · PF ${row.positionOveralls.PF} · C ${row.positionOveralls.C}`}>PG {row.positionOveralls.PG} | SG {row.positionOveralls.SG} | SF {row.positionOveralls.SF} | PF {row.positionOveralls.PF} | C {row.positionOveralls.C}</small></td><td>{row.potential}</td><td>{row.minutes}</td><td>{row.ppg.toFixed(1)}</td><td>{row.rpg.toFixed(1)}</td><td>{row.apg.toFixed(1)}</td><td>{row.status}</td></tr>)}</tbody>
       </table>
     </section>
   );
