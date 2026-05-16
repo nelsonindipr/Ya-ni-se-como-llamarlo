@@ -1,39 +1,54 @@
 :root {
   font-family: Inter, system-ui, Arial, sans-serif;
-  color: #e5eefb;
-  background: #0f1728;
+  color: #e7edf9;
+  background: #060b16;
 }
-
-body {
-  margin: 0;
-  background: #0b1220;
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(circle at top, #0f1d3a, #060b16 55%); }
+.app-shell { --team-accent: #4aa3ff; }
+button, select, input {
+  background: #101a2e; color: #e7edf9; border: 1px solid #31476b; border-radius: 10px; padding: 0.45rem 0.7rem;
+  transition: all .2s ease;
 }
-
-.app-shell { padding: 0; max-width: none; margin: 0; }
+button:hover { border-color: var(--team-accent); transform: translateY(-1px); }
+.menu-shell { min-height: 100vh; display: grid; place-items: center; }
+.menu-card { width: min(840px, 94vw); background: #111a2b; border: 1px solid #2c3e5c; border-radius: 16px; padding: 1.25rem; display: grid; gap: .75rem; }
 .top-nav {
-  position: sticky; top: 0; z-index: 20;
-  display: grid; grid-template-columns: 1.2fr 1fr 1.2fr 1.2fr;
-  gap: 0.75rem; align-items: center;
-  padding: 0.85rem 1.2rem; background: #18243c; border-bottom: 1px solid #2b3d61;
+  position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1.4fr .8fr .9fr 1.8fr 1.5fr; gap: .8rem;
+  padding: .85rem 1rem; background: rgba(12,20,35,.95); backdrop-filter: blur(7px); border-bottom: 1px solid #263955;
 }
-.layout { display: grid; grid-template-columns: 220px 1fr 320px; min-height: calc(100vh - 126px); }
-.left-sidebar { background: #121c2f; padding: 1rem; display: flex; flex-direction: column; gap: 0.45rem; border-right: 1px solid #273859; }
-.left-sidebar button { text-align: left; background: transparent; border: 1px solid #2a3a5b; color: #dce8ff; padding: 0.5rem; border-radius: 8px; }
-.left-sidebar button.active { background: #264674; border-color: #3d71b7; }
-.content-area { padding: 1rem; }
-.right-panel { background: #121c2f; border-left: 1px solid #273859; padding: 1rem; }
-.card, table, .modal-content { background: #17233a; border: 1px solid #2a3a5b; border-radius: 10px; }
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 0.8rem; }
-.card { padding: 0.8rem; }
-.card p { font-size: 1.2rem; font-weight: 700; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1rem; }
-table { width: 100%; border-collapse: collapse; }
-th, td { border: 1px solid #2f4164; padding: 0.4rem; font-size: 0.82rem; color: #edf3ff; }
-.sort-btn { all: unset; cursor: pointer; font-size: 0.75rem; color: #9fc1ff; }
-.row-between { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.7rem; }
-.modal-overlay { position: fixed; inset: 0; background: rgba(1,4,10,0.7); display: grid; place-items: center; z-index: 30; }
+.sub { display:block; color: #95a7c7; font-size: .75rem; font-weight: 500; margin-top: .15rem; }
+.layout { display: grid; grid-template-columns: 250px 1fr 310px; min-height: calc(100vh - 120px); }
+.left-sidebar, .right-panel {
+  background: linear-gradient(180deg, #101a2c, #0c1424); padding: 1rem; border-color: #263955;
+}
+.left-sidebar { border-right: 1px solid #263955; display: grid; gap: .45rem; align-content: start; }
+.left-sidebar button { text-align: left; padding: .6rem .65rem; background: transparent; }
+.left-sidebar button.active { background: linear-gradient(90deg, color-mix(in srgb, var(--team-accent) 24%, #13223d), #13223d); border-color: color-mix(in srgb, var(--team-accent) 60%, #31476b); }
+.content-area { padding: 1rem; display: grid; gap: 1rem; }
+.section-head { display:flex; justify-content: space-between; align-items:center; margin-bottom:.75rem; }
+.toolbar { display:flex; gap:.5rem; }
+.card, .table-wrap, .modal-content, .right-panel, .premium-table { background: #111b2f; border: 1px solid #2a3d5f; border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+.cards-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); gap: .9rem; }
+.card { padding: .9rem; }
+.card-wide { grid-column: span 2; }
+.card h3 { margin:0 0 .4rem; font-size:.9rem; color:#afc3e5; text-transform: uppercase; letter-spacing: .05em; }
+.card p { margin:0; font-size:1.25rem; font-weight: 700; }
+.grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(420px,1fr)); gap: 1rem; }
+.table-wrap { overflow:auto; }
+.premium-table { width:100%; border-collapse: collapse; }
+.premium-table th { position: sticky; top: 0; background:#14213a; z-index: 1; }
+th, td { border-bottom: 1px solid #243753; padding: .55rem; vertical-align: top; font-size: .82rem; }
+.premium-table tbody tr:hover { background: #16243f; cursor: pointer; }
+.sort-btn { all: unset; cursor:pointer; font-size:.72rem; color:#9eb6df; font-weight: 700; }
+.badge { display:inline-block; border:1px solid #36517b; background:#12203a; border-radius:999px; padding:.1rem .45rem; font-size:.72rem; margin-right:.2rem; }
+.right-panel h3 { margin-bottom: .35rem; }
+.status { color: #87f9ba; font-weight: 700; margin: 0; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.66); display:grid; place-items:center; z-index:100; animation: fadeIn .2s ease; }
 .modal-content { width: min(1100px, 92vw); max-height: 90vh; overflow: auto; padding: 1rem; }
-.footer-controls { display: flex; gap: 0.5rem; align-items: center; padding: 0.7rem 1rem; border-top: 1px solid #273859; background: #18243c; }
-button, select, input { background: #0f1a2f; color: #e5efff; border: 1px solid #37507b; border-radius: 8px; padding: 0.35rem 0.5rem; }
-.status { color: #8ed0a8; }
-ul { padding-left: 1.1rem; }
+.footer-controls { display:flex; gap:.55rem; align-items:center; padding:.7rem 1rem; border-top:1px solid #263955; background:#0f192d; }
+ul { padding-left: 1rem; margin: .35rem 0 0; }
+.sim-controls { display:flex; gap:.4rem; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 1280px) { .layout { grid-template-columns: 220px 1fr; } .right-panel { display:none; } }
+@media (max-width: 900px) { .top-nav { grid-template-columns: 1fr 1fr; } .layout { grid-template-columns: 1fr; } .left-sidebar { grid-template-columns: repeat(2,minmax(0,1fr)); } .card-wide { grid-column: span 1; } }
