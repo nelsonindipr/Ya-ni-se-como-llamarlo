@@ -41,7 +41,7 @@ export const simplifiedRatingsFromDetailed = (player: Player): SimplifiedPlayerR
 });
 
 export const calculatePositionOverall = (player: Player, position: Position): number =>
-  calculatePositionOverallFromRatings(player.ratings, position);
+  calculatePositionOverallDiagnosticsFromRatings(player.ratings, position).finalRoundedOverall;
 
 const calculatePositionOverallFromRatings = (ratings: PlayerRatings, position: Position): number =>
   Object.entries(POSITION_OVERALL_WEIGHTS[position]).reduce((total, [attribute, weight]) => total + ratings[attribute as keyof PlayerRatings] * weight, 0);
@@ -156,7 +156,7 @@ const closestDistanceToNaturalPosition = (player: Player, assignedPosition: Posi
   return naturalPositions.reduce((closest, position) => Math.min(closest, Math.abs(POSITION_INDEX[position] - assignedIndex)), Number.POSITIVE_INFINITY);
 };
 
-export const calculateOverall = (player: Player): number => roundRating(calculatePositionOverall(player, player.position));
+export const calculateOverall = (player: Player): number => calculatePositionOverall(player, player.position);
 
 export const calculateEffectiveOverall = (player: Player, assignedPosition: Position): number => {
   const assignedOverall = calculatePositionOverall(player, assignedPosition);
@@ -168,11 +168,11 @@ export const calculateEffectiveOverall = (player: Player, assignedPosition: Posi
 };
 
 export const calculateAllPositionOveralls = (player: Player): Record<Position, number> => ({
-  PG: roundRating(calculatePositionOverall(player, 'PG')),
-  SG: roundRating(calculatePositionOverall(player, 'SG')),
-  SF: roundRating(calculatePositionOverall(player, 'SF')),
-  PF: roundRating(calculatePositionOverall(player, 'PF')),
-  C: roundRating(calculatePositionOverall(player, 'C'))
+  PG: calculatePositionOverall(player, 'PG'),
+  SG: calculatePositionOverall(player, 'SG'),
+  SF: calculatePositionOverall(player, 'SF'),
+  PF: calculatePositionOverall(player, 'PF'),
+  C: calculatePositionOverall(player, 'C')
 });
 
 export const calculateBsnOverallFromRatings = (ratings: PlayerRatings, position: Position): number => calculatePositionOverallDiagnosticsFromRatings(ratings, position).finalRoundedOverall;

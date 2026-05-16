@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Player, PlayerRatings } from './types';
-import { calculateBasePositionOverallFromRatings, calculateBsnOverallFromRatings, calculateEffectiveOverall, calculateOverall, calculatePositionOverallDiagnosticsFromRatings } from './playerRatings';
+import { calculateAllPositionOveralls, calculateBasePositionOverallFromRatings, calculateBsnOverallFromRatings, calculateEffectiveOverall, calculateOverall, calculatePlayerOverall, calculatePositionOverallDiagnosticsFromRatings, POSITION_OVERALL_WEIGHTS } from './playerRatings';
 
 const baseRatings = (): PlayerRatings => ({
   closeShot: 60, drivingLayup: 60, drivingDunk: 60, standingDunk: 60, postControl: 60, drawFoul: 60, midRange: 60, threePoint: 60, freeThrow: 60, shotCreation: 60, offBallMovement: 60, passAccuracy: 60, ballHandle: 60, interiorDefense: 60, perimeterDefense: 60, steal: 60, block: 60, offensiveRebound: 60, defensiveRebound: 60, speed: 60, acceleration: 60, strength: 60, vertical: 60, stamina: 60, offensiveIQ: 60, defensiveIQ: 60, clutch: 60, hustle: 60
@@ -16,6 +16,29 @@ const mkPlayer = (overrides: Partial<Player> & { ratings?: Partial<PlayerRatings
 });
 
 describe('archetype-based OVR rollout', () => {
+  it('calculatePlayerOverall uses BSN formula for primary position', () => {
+    const player = mkPlayer({ position: 'SF', ratings: { threePoint: 87, offBallMovement: 88, perimeterDefense: 84, shotCreation: 80 } });
+    expect(calculatePlayerOverall(player)).toBe(calculateBsnOverallFromRatings(player.ratings, player.position));
+  });
+
+  it('calculateAllPositionOveralls uses BSN formula for each position', () => {
+    const player = mkPlayer({ ratings: { threePoint: 89, midRange: 83, passAccuracy: 82 } });
+    const overalls = calculateAllPositionOveralls(player);
+    expect(overalls.SG).toBe(calculateBsnOverallFromRatings(player.ratings, 'SG'));
+  });
+
+  it('effective overall applies OOP penalty after BSN formula, not raw base formula', () => {
+    const player = mkPlayer({ position: 'PG', secondaryPositions: ['SG'], ratings: { passAccuracy: 92, ballHandle: 94, threePoint: 85, speed: 90, acceleration: 92 } });
+    const assignedPosition: Player['position'] = 'PF';
+    const expected = calculateBsnOverallFromRatings(player.ratings, assignedPosition) - 8;
+    const rawBaseAssigned = Object.entries(POSITION_OVERALL_WEIGHTS[assignedPosition]).reduce((total, [attribute, weight]) => {
+      const value = player.ratings[attribute as keyof PlayerRatings] ?? 0;
+      return total + value * weight;
+    }, 0);
+    expect(calculateEffectiveOverall(player, assignedPosition)).toBe(expected);
+    expect(calculateEffectiveOverall(player, assignedPosition)).not.toBe(Math.round(rawBaseAssigned - 8));
+  });
+
   it('elite off-screen shooter selects offscreen_shooter and improves over flat base', () => {
     const ratings = { ...baseRatings(), threePoint: 95, offBallMovement: 95, midRange: 90, freeThrow: 90, shotCreation: 86, stamina: 90, offensiveIQ: 90, clutch: 88, drivingDunk: 35, standingDunk: 35, block: 30, offensiveRebound: 35, defensiveRebound: 38 };
     const diag = calculatePositionOverallDiagnosticsFromRatings(ratings, 'SG');
